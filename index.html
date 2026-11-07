@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Affärssvenska">
+<title>Affärssvenska</title>
+<link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="icon" href="icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#F3F6FA;--surface:#FFFFFF;--ink:#14233A;--muted:#5D6B80;--line:#D8E0EA;
+  --blue:#1E5BB8;--blue-soft:#E3ECF8;--on-blue:#FFFFFF;--streak-bg:#1E5BB8;--streak-ink:#FFFFFF;--streak-dot:#FFFFFF;
+  --ok:#1F8A55;--ok-soft:#E2F4EA;--bad:#C2413A;--bad-soft:#FBE7E5;--warn:#B7791F;color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0F1A2B;--surface:#17243A;--ink:#E9EEF6;--muted:#9AA8BC;--line:#2A3B57;
+  --blue:#6FA2EE;--blue-soft:#1F3352;--on-blue:#0F1A2B;--streak-bg:#F3F6FA;--streak-ink:#14233A;--streak-dot:#1E5BB8;
+  --ok:#4CC28A;--ok-soft:#173A2B;--bad:#EF7B73;--bad-soft:#3E1F1D;--warn:#E3B04B;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1A2B;--surface:#17243A;--ink:#E9EEF6;--muted:#9AA8BC;--line:#2A3B57;
+  --blue:#6FA2EE;--blue-soft:#1F3352;--on-blue:#0F1A2B;--streak-bg:#F3F6FA;--streak-ink:#14233A;--streak-dot:#1E5BB8;
+  --ok:#4CC28A;--ok-soft:#173A2B;--bad:#EF7B73;--bad-soft:#3E1F1D;--warn:#E3B04B;color-scheme:dark}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Manrope,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.wrap{max-width:540px;margin:0 auto;padding:12px 18px 32px}
+.hidden{display:none!important}
+.row{display:flex;align-items:center;gap:10px}
+.icon-btn{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--surface);font-size:1.15rem;flex:none}
+h1{font-size:1.8rem;font-weight:800;letter-spacing:-.02em;margin:6px 0}
+h2{font-size:1.2rem;font-weight:700;margin:0}
+.muted{color:var(--muted)}
+.small{font-size:.85rem}
+/* Streak */
+.streak{background:var(--streak-bg);color:var(--streak-ink);border-radius:22px;padding:18px 20px;margin:12px 0 16px}
+.streak .big{font-size:2.3rem;font-weight:800;line-height:1}
+.streak .lbl{font-size:.9rem;opacity:.85}
+.week{display:flex;justify-content:space-between;margin-top:14px}
+.day{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:.72rem;opacity:.9}
+.dot{width:24px;height:24px;border-radius:50%;border:2px solid currentColor;opacity:.5}
+.dot.on{background:var(--streak-dot);border-color:var(--streak-dot);opacity:1}
+.dot.today{outline:2px solid currentColor;outline-offset:2px;opacity:1}
+.goalbar{height:8px;border-radius:4px;background:rgba(127,127,127,.3);margin-top:14px;overflow:hidden}
+.goalbar i{display:block;height:100%;background:var(--streak-dot);width:0}
+/* Kacheln */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tile{text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:14px 14px 0;overflow:hidden;display:flex;flex-direction:column;min-height:150px}
+.tile h3{margin:0 0 8px;font-size:.98rem;font-weight:700;line-height:1.25;flex:1}
+.stats{display:grid;grid-template-columns:1fr auto;row-gap:2px;font-size:.82rem;margin-bottom:10px}
+.stats span:nth-child(odd){color:var(--muted)}
+.stats span:nth-child(even){font-weight:700;text-align:right}
+.bar{height:5px;background:var(--blue-soft);margin:0 -14px}
+.bar i{display:block;height:100%;background:var(--blue);width:0}
+.primary{width:100%;border:0;border-radius:18px;background:var(--blue);color:var(--on-blue);font-weight:700;font-size:1.05rem;padding:15px}
+.secondary{border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:10px 14px;font-weight:600}
+.section-title{display:flex;justify-content:space-between;align-items:center;margin:22px 0 10px}
+/* Liste */
+.list{background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-top:14px}
+.item{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);width:100%;text-align:left;background:none;border-left:0;border-right:0;border-top:0}
+.item:last-child{border-bottom:0}
+.item .t{flex:1;min-width:0}
+.item b{display:block;font-weight:700}
+.item span{color:var(--muted);font-size:.88rem}
+.st{width:12px;height:12px;border-radius:50%;background:var(--line);flex:none}
+.st.l{background:var(--warn)}.st.d{background:var(--ok)}
+/* Karte */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:20px 18px;text-align:center;touch-action:pan-y;transition:transform .2s}
+.cardtop{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:.8rem;margin-bottom:10px}
+.cardtop button{background:none;border:0;color:var(--muted);font-size:1.1rem;padding:4px}
+.de-word{font-size:1.6rem;font-weight:800;display:inline-block;border-bottom:3px solid var(--blue);padding-bottom:4px;line-height:1.25}
+.de-word.w{font-size:1.2rem;font-weight:700}
+.typ{font-size:.85rem;color:var(--muted);margin-left:6px}
+.lemma{margin-top:12px;font-size:1.15rem;font-weight:700;color:var(--blue);min-height:1.5em}
+.lemma small{font-weight:500;color:var(--muted);font-size:.85rem;margin-left:6px}
+.old{display:inline-block;font-size:.75rem;color:var(--warn);border:1px solid var(--warn);border-radius:8px;padding:1px 6px;margin-left:6px;vertical-align:middle}
+.sv{font-size:1.22rem;line-height:1.7;margin:20px 0 8px}
+.gap{font:inherit;font-weight:700;padding:2px 8px;border:2px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);text-align:center;max-width:100%}
+.solo{width:100%;margin:18px 0 6px;font-size:1.15rem;padding:10px}
+textarea.solo{min-height:84px;text-align:left;resize:vertical;font-weight:600}
+.fill{font-weight:800;padding:0 4px;border-radius:6px}
+.fill.ok{background:var(--ok-soft);color:var(--ok)}.fill.bad{background:var(--bad-soft);color:var(--bad)}
+.dex{color:var(--muted);line-height:1.6}
+.dex b{color:var(--ink)}
+.answer{font-size:1.25rem;font-weight:700;margin:18px 0 6px;line-height:1.5}
+.alts{color:var(--muted);font-size:.92rem;line-height:1.5}
+.yours{font-size:.9rem;color:var(--muted);margin-top:8px}
+.msg{min-height:1.3em;margin-top:10px;font-size:.9rem;font-weight:600}
+.msg.ok{color:var(--ok)}.msg.bad{color:var(--bad)}.msg.warn{color:var(--warn)}
+.src{color:var(--muted);font-size:.8rem;margin-top:6px}
+.tools{display:flex;justify-content:center;gap:10px;margin-top:14px}
+.tool{border:1px solid var(--line);background:var(--bg);border-radius:20px;padding:8px 14px;font-size:.9rem;font-weight:600}
+.actions{margin-top:14px}
+.rate{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.rate button{border-radius:18px;padding:14px 6px;font-weight:700;border:1px solid var(--line);background:var(--surface)}
+.rate .no{color:var(--bad)}.rate .yes{background:var(--ok);border-color:var(--ok);color:#fff}.rate .never{color:var(--muted);font-size:.9rem}
+.hintrow{display:flex;justify-content:flex-end;margin-top:8px}
+.hintrow button{background:none;border:0;color:var(--blue);font-weight:600;padding:6px}
+.done{text-align:center;padding:40px 10px}
+.done b{display:block;font-size:1.4rem;margin-bottom:8px}
+/* Sheet */
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--surface);color:var(--ink);width:100%;max-width:540px;max-height:92%;overflow:auto;border-radius:22px 22px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px))}
+.sheet label{display:block;font-size:.85rem;font-weight:600;color:var(--muted);margin:12px 0 4px}
+.sheet input,.sheet textarea,.sheet select{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink)}
+.sheet textarea{min-height:64px;resize:vertical}
+.sheet .btns{display:flex;gap:10px;margin-top:18px}
+.sheet .btns button{flex:1}
+.danger{border:1px solid var(--bad);color:var(--bad);background:none;border-radius:14px;padding:12px;font-weight:600}
+.toast{position:fixed;left:50%;top:calc(16px + env(safe-area-inset-top,0px));transform:translateX(-50%);background:var(--ok);color:#fff;padding:12px 18px;border-radius:14px;font-weight:700;z-index:30;box-shadow:0 6px 20px rgba(0,0,0,.2);text-align:center}
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:18px;padding:18px;text-align:center;color:var(--muted);line-height:1.5}
+@media (prefers-reduced-motion:reduce){.card{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<section id="vHome">
+  <div class="row" style="justify-content:space-between">
+    <h1>Affärssvenska</h1>
+    <div class="row">
+      <button class="icon-btn" id="themeBtn" aria-label="Daylight/Moonlight umschalten">🌙</button>
+      <button class="icon-btn" id="setBtn" aria-label="Einstellungen">⚙︎</button>
+    </div>
+  </div>
+  <div class="streak">
+    <div class="row" style="justify-content:space-between;align-items:flex-end">
+      <div><div class="big" id="sCur">0</div><div class="lbl" id="sCurLbl">Tage in Folge</div></div>
+      <div style="text-align:right"><div class="lbl">Rekord</div><div style="font-weight:800;font-size:1.2rem" id="sBest">0</div></div>
+    </div>
+    <div class="goalbar"><i id="gBar"></i></div>
+    <div class="lbl" style="margin-top:6px" id="gTxt"></div>
+    <div class="week" id="week"></div>
+  </div>
+  <button class="primary" id="learnAll">Alle fälligen Karten lernen</button>
+  <div id="noData" class="empty hidden" style="margin-top:16px">Noch keine Buchkarten geladen.<br>Tippe auf ⚙︎ und dann auf „Karten laden“.</div>
+  <div class="section-title"><h2>Sammlungen</h2><button class="secondary" id="newColl">+ Sammlung</button></div>
+  <div class="grid" id="grid"></div>
+</section>
+
+<section id="vColl" class="hidden">
+  <div class="row"><button class="icon-btn" id="collBack" aria-label="Zurück">‹</button><h2 id="collName" style="flex:1"></h2><button class="icon-btn" id="collRename" aria-label="Sammlung umbenennen">✎</button></div>
+  <div class="row" style="margin-top:14px"><button class="primary" id="collLearn" style="flex:2">Lernen</button><button class="secondary" id="collAdd" style="flex:1;padding:15px 10px">+ Karte</button></div>
+  <div class="list" id="collList"></div>
+  <button class="small secondary hidden" id="collReset" style="margin-top:14px;width:100%">Fortschritt dieser Sammlung zurücksetzen</button>
+</section>
+
+<section id="vLearn" class="hidden">
+  <div class="row" style="margin-bottom:12px"><button class="icon-btn" id="learnBack" aria-label="Zurück">‹</button>
+    <div style="flex:1;height:32px;border-radius:16px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem" id="left"></div></div>
+  <div class="card" id="card"></div>
+  <div class="hintrow" id="hintRow"><button id="hint">Hinweis</button></div>
+  <div class="actions" id="actFront"><button class="primary" id="check">Aufdecken</button></div>
+  <div class="actions rate hidden" id="actBack">
+    <button class="no" id="rNo">✗ Nochmal</button><button class="never" id="rNever">Nie wieder</button><button class="yes" id="rYes">✓ Gewusst</button>
+  </div>
+  <div class="done hidden" id="done"><b>Geschafft!</b>Für diese Auswahl sind heute keine Karten mehr fällig.</div>
+</section>
+
+</div>
+<div id="sheetRoot"></div>
+<input type="file" id="fileIn" accept=".json,application/json" class="hidden">
+
+<script>
+const EMBEDDED = /*__DATA__*/null;
+const CHAPTERS = {1:"Kap. 1 – Personalen. Kontoret.",2:"Kap. 2 – Att vara anställd. Besök på banken.",3:"Kap. 3 – Att samtala i telefon",4:"Kap. 4 – Samtal på arbetet",5:"Kap. 5 – Besök på en mässa",6:"Kap. 6 – Besök hos en tillverkare",7:"Kap. 7 – Presentation av ett företags verksamhet",8:"Kap. 8 – Eira sammanfattar sina intryck"};
+const STEPS=[3,7,10], DAY=86400000;
+
+// ---------- Speicher ----------
+const LS={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let base = EMBEDDED || LS.get("as-data",[]);
+let user = Object.assign({cards:[],colls:[],edits:{},deleted:[],names:{}}, LS.get("as-user",{}));
+let prog = LS.get("as-prog",{});
+let streak = Object.assign({goal:30,days:{},best:0}, LS.get("as-streak",{}));
+const saveUser=()=>LS.set("as-user",user), saveProg=()=>LS.set("as-prog",prog), saveStreak=()=>LS.set("as-streak",streak);
+
+function allCards(){
+  const del=new Set(user.deleted);
+  const b=base.filter(c=>!del.has(c.id)).map(c=>user.edits[c.id]?Object.assign({},c,user.edits[c.id]):c);
+  return b.concat(user.cards);
+}
+function collections(){
+  const cs=allCards(), out=[];
+  const ks=[...new Set(cs.filter(c=>c.k!=null).map(c=>c.k))].sort((a,b)=>a-b);
+  ks.forEach(k=>out.push({id:"k"+k,name:user.names["k"+k]||CHAPTERS[k]||("Kap. "+k),match:c=>c.k===k}));
+  user.colls.forEach(col=>out.push({id:col.id,name:col.name,own:true,match:c=>c.coll===col.id}));
+  return out;
+}
+// ---------- Zeit & Streak ----------
+const dkey=d=>{const x=new Date(d);return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0")};
+const today0=()=>{const d=new Date();d.setHours(0,0,0,0);return d.getTime()};
+function curStreak(){
+  let n=0,d=new Date();d.setHours(12,0,0,0);
+  if(!(streak.days[dkey(d)]||{}).met) d.setDate(d.getDate()-1);
+  while((streak.days[dkey(d)]||{}).met){n++;d.setDate(d.getDate()-1)}
+  return n;
+}
+function countToday(){
+  const k=dkey(Date.now()), t=streak.days[k]||{n:0,met:false};
+  t.n++; let hit=false;
+  if(!t.met && t.n>=streak.goal){t.met=true;hit=true}
+  streak.days[k]=t; streak.best=Math.max(streak.best,curStreak()); saveStreak();
+  if(hit){fanfare();toast("Tagesziel erreicht! 🎉<br><span style='font-weight:500'>"+curStreak()+" Tag(e) in Folge</span>")}
+}
+// ---------- Status einer Karte ----------
+const st=c=>prog[c.id];
+const isDue=c=>{const s=st(c);return !s||(!s.done&&s.due<=today0())};
+function statsOf(cs){let n=0,l=0,d=0;cs.forEach(c=>{const s=st(c);if(!s)n++;else if(s.done)d++;else l++});return {n,l,d}}
+
+// ---------- Hilfen ----------
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+const bold=s=>esc(s).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>");
+const norm=s=>String(s).toLowerCase().replace(/[.,!?;:„“"”'’–-]/g," ").replace(/\s+/g," ").trim();
+const plain=s=>norm(s).normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+const core=c=>c.sv.replace(/^\((en|ett)\)\s*/,"").replace(/^(en|ett)\s+/,"").replace(/\s*\(.*?\)\s*/g," ").split("/")[0].trim();
+function answerOf(c){
+  if(c.t==="w") return [c.sv].concat(c.alt||[]);
+  const m=c.s&&c.s.match(/\{(.+?)\}/); if(m) return [m[1]];
+  const k=core(c); return [k, c.sv.replace(/\s*\(.*?\)\s*/g," ").trim()];
+}
+function lev(a,b){const m=a.length,n=b.length;if(!m)return n;if(!n)return m;let p=Array(n+1).fill(0).map((_,i)=>i);for(let i=1;i<=m;i++){let c=[i];for(let j=1;j<=n;j++)c[j]=Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1));p=c}return p[n]}
+function grade(c,typed){
+  if(!typed.trim()) return "none";
+  const ans=answerOf(c);
+  if(ans.some(a=>norm(a)===norm(typed))) return "ok";
+  if(ans.some(a=>plain(a)===plain(typed))) return "warn";
+  if(c.t==="w" && ans.some(a=>{const x=plain(a),y=plain(typed);return lev(x,y)<=Math.max(2,Math.round(x.length*.12))})) return "close";
+  return "bad";
+}
+function toast(html){const t=document.createElement("div");t.className="toast";t.innerHTML=html;document.body.appendChild(t);setTimeout(()=>t.remove(),2600)}
+let actx=null;
+function fanfare(){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume&&actx.resume();
+  [[523.25,0],[659.25,.13],[783.99,.26],[1046.5,.42]].forEach(([f,t])=>{const o=actx.createOscillator(),g=actx.createGain();o.type="triangle";o.frequency.value=f;
+  const s=actx.currentTime+t;g.gain.setValueAtTime(0,s);g.gain.linearRampToValueAtTime(.25,s+.02);g.gain.exponentialRampToValueAtTime(.001,s+(t>.4?.7:.25));o.connect(g).connect(actx.destination);o.start(s);o.stop(s+.8)})}catch(e){}}
+let voice=null;
+function pickVoice(){const vs=speechSynthesis.getVoices().filter(v=>(v.lang||"").toLowerCase().startsWith("sv"));voice=vs.find(v=>/oskar/i.test(v.name))||vs[0]||null}
+if("speechSynthesis" in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}
+function speak(text){if(!("speechSynthesis" in window))return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang="sv-SE";if(voice)u.voice=voice;speechSynthesis.speak(u)}
+
+// ---------- Ansichten ----------
+function show(id){["vHome","vColl","vLearn"].forEach(v=>$(v).classList.toggle("hidden",v!==id));window.scrollTo(0,0)}
+function renderHome(){
+  const cur=curStreak(); $("sCur").textContent=cur; $("sCurLbl").textContent=cur===1?"Tag in Folge":"Tage in Folge";
+  $("sBest").textContent=Math.max(streak.best,cur);
+  const t=streak.days[dkey(Date.now())]||{n:0,met:false};
+  $("gBar").style.width=Math.min(100,t.n/streak.goal*100)+"%";
+  $("gTxt").textContent=t.met?("Tagesziel erreicht · "+t.n+" Karten heute"):(t.n+" von "+streak.goal+" Karten heute");
+  const w=$("week");w.innerHTML="";const d=new Date();d.setHours(12,0,0,0);const off=(d.getDay()+6)%7;d.setDate(d.getDate()-off);
+  ["Mo","Di","Mi","Do","Fr","Sa","So"].forEach((n,i)=>{const k=dkey(d);const on=(streak.days[k]||{}).met;const isT=k===dkey(Date.now());
+    w.insertAdjacentHTML("beforeend",`<div class="day"><div class="dot${on?" on":""}${isT?" today":""}"></div>${n}</div>`);d.setDate(d.getDate()+1)});
+  $("noData").classList.toggle("hidden",base.length>0);
+  const cs=allCards(); $("learnAll").textContent="Alle fälligen Karten lernen ("+cs.filter(isDue).length+")";
+  const g=$("grid");g.innerHTML="";
+  collections().forEach(col=>{const items=cs.filter(col.match),s=statsOf(items);
+    const b=document.createElement("button");b.className="tile";
+    b.innerHTML=`<h3>${esc(col.name)}</h3><div class="stats"><span>Nicht geübt</span><span>${s.n}</span><span>Lernen</span><span>${s.l}</span><span>Gelernt</span><span>${s.d}</span></div><div class="bar"><i style="width:${items.length?s.d/items.length*100:0}%"></i></div>`;
+    b.onclick=()=>openColl(col.id);g.appendChild(b)});
+}
+let curColl=null;
+function getColl(id){return collections().find(c=>c.id===id)}
+function openColl(id){curColl=id;renderColl();show("vColl")}
+function renderColl(){
+  const col=getColl(curColl);if(!col){show("vHome");renderHome();return}
+  $("collName").textContent=col.name;
+  const items=allCards().filter(col.match);
+  $("collLearn").textContent="Lernen ("+items.filter(isDue).length+" fällig)";
+  $("collReset").classList.toggle("hidden",!items.some(c=>st(c)));
+  const L=$("collList");L.innerHTML=items.length?"":`<div class="empty" style="border:0">Noch keine Karten. Tippe auf „+ Karte“.</div>`;
+  items.forEach(c=>{const s=st(c);const b=document.createElement("button");b.className="item";
+    b.innerHTML=`<span class="st ${s?(s.done?"d":"l"):""}"></span><span class="t"><b>${esc(c.sv)}${c.old?' <span class="old">veraltet</span>':""}</b><span>${esc(c.de)}${c.t==="w"?" · Wendung":""}</span></span><span class="muted">✎</span>`;
+    b.onclick=()=>editCard(c);L.appendChild(b)});
+}
+// ---------- Lernen ----------
+let queue=[],cur=null,revealed=false,hintLvl=0,from="vHome";
+function startLearn(filter,back){
+  const cs=allCards().filter(filter);
+  queue=[...cs.filter(c=>st(c)&&isDue(c)),...cs.filter(c=>!st(c))];
+  from=back;show("vLearn");next();
+}
+function cardHead(c){return `<div class="cardtop"><span>${esc(c.coll?(getColl(c.coll)||{}).name||"":(CHAPTERS[c.k]||"").split(" – ")[0])}</span><button id="editCur" aria-label="Karte bearbeiten">✎</button></div>`}
+function next(){
+  $("left").textContent=queue.length?queue.length+" offen":"";
+  if(!queue.length){["card","actFront","actBack","hintRow"].forEach(i=>$(i).classList.add("hidden"));$("done").classList.remove("hidden");return}
+  cur=queue[0];revealed=false;hintLvl=0;
+  ["card","actFront","hintRow"].forEach(i=>$(i).classList.remove("hidden"));$("actBack").classList.add("hidden");$("done").classList.add("hidden");
+  const c=cur;let h=cardHead(c);
+  if(c.t==="w"){
+    h+=`<div><span class="de-word w">${esc(c.de)}</span></div><div class="typ" style="margin:6px 0 0">Wendung</div>
+      <textarea class="gap solo" id="gap" autocomplete="off" autocapitalize="sentences" spellcheck="false" placeholder="Auf Schwedisch …"></textarea><div class="msg" id="msg"></div>`;
+  }else{
+    h+=`<div><span class="de-word">${esc(c.de)}</span><span class="typ">(${esc(c.typ)})</span></div><div class="lemma" id="lemma"></div>`;
+    if(c.s){const [a,b]=c.s.split(/\{.+?\}/);const len=answerOf(c)[0].length;
+      h+=`<div class="sv">${esc(a)}<input class="gap" id="gap" style="width:${Math.max(6,len+2)}ch" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Antwort">${esc(b)}</div><div class="dex">${bold(c.d)}</div>`;
+    }else h+=`<input class="gap solo" id="gap" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Auf Schwedisch …">`;
+    h+=`<div class="msg" id="msg"></div>`;
+  }
+  $("card").innerHTML=h;$("card").style.transform="";
+  $("editCur").onclick=()=>editCard(c,true);
+  const g=$("gap");g.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();reveal()}});
+  setTimeout(()=>g.focus({preventScroll:true}),60);
+}
+function reveal(){
+  if(revealed)return;revealed=true;const c=cur,typed=$("gap").value,g=grade(c,typed),ans=answerOf(c);
+  const msgs={ok:["ok","Richtig!"],warn:["warn","Fast – achte auf å, ä und ö."],close:["warn","Fast – kleine Abweichung. Entscheide selbst."],bad:["bad","Nicht ganz – so heißt es:"],none:["","Lösung:"]};
+  let h=cardHead(c);
+  if(c.t==="w"){
+    h+=`<div><span class="de-word w">${esc(c.de)}</span></div><div class="answer">${esc(c.sv)}</div>`;
+    if(c.alt&&c.alt.length)h+=`<div class="alts">Auch möglich: ${c.alt.map(esc).join(" · ")}</div>`;
+    if(typed.trim()&&g!=="ok")h+=`<div class="yours">Deine Antwort: ${esc(typed)}</div>`;
+  }else{
+    let lem=esc(c.sv);if(c.betont)lem=lem.replace(c.betont,"<u>"+esc(c.betont)+"</u>");
+    const info=c.info?(/^[1-4]$/.test(c.info)?"Konj. "+c.info:c.info):"";
+    h+=`<div><span class="de-word">${esc(c.de)}</span><span class="typ">(${esc(c.typ)})</span></div><div class="lemma">${lem}<small>${esc(info)}</small>${c.old?'<span class="old">veraltet</span>':""}</div>`;
+    if(c.s){const [a,b]=c.s.split(/\{.+?\}/);h+=`<div class="sv">${esc(a)}<span class="fill ${g==="ok"?"ok":"bad"}">${esc(ans[0])}</span>${esc(b)}</div><div class="dex">${bold(c.d)}</div>`}
+    if(typed.trim()&&g!=="ok")h+=`<div class="yours">Deine Antwort: ${esc(typed)}</div>`;
+  }
+  h+=`<div class="msg ${msgs[g][0]}">${msgs[g][1]}</div>`;
+  const src=c.p?("Affärssvenska Bok 1, S. "+c.p+(c.note?" · "+c.note:"")):(c.note||"");
+  if(src)h+=`<div class="src">${esc(src)}</div>`;
+  const say=c.t==="w"?c.sv:(c.s?c.s.replace(/[{}]/g,""):core(c));
+  h+=`<div class="tools"><button class="tool" id="say">🔊 ${c.t==="w"||!c.s?"Anhören":"Satz"}</button></div>`;
+  $("card").innerHTML=h;$("editCur").onclick=()=>editCard(c,true);$("say").onclick=()=>speak(say);
+  $("actFront").classList.add("hidden");$("hintRow").classList.add("hidden");$("actBack").classList.remove("hidden");
+  speak(say);
+}
+function rate(kind){
+  if(!revealed)return;const c=cur,s=prog[c.id]||{lvl:0};
+  if(kind==="yes"){if(s.lvl>=STEPS.length)s.done=true;else{s.due=today0()+STEPS[s.lvl]*DAY;s.lvl++}}
+  else if(kind==="no"){s.lvl=0;s.due=today0()+DAY;s.done=false}
+  else{s.done=true;s.never=true}
+  prog[c.id]=s;saveProg();countToday();
+  const card=$("card");card.style.transform="translateX("+(kind==="no"?"-":"")+"30px)";
+  queue.shift();setTimeout(next,140);
+}
+function hint(){const a=answerOf(cur)[0];hintLvl=Math.min(a.length,hintLvl+1);const m=$("msg");m.className="msg";m.textContent="Beginnt mit: "+a.slice(0,hintLvl)+"…";$("gap").focus()}
+// Wischen auf der aufgedeckten Karte
+(function(){let x0=null;const el=$("card");
+  el.addEventListener("touchstart",e=>{if(revealed)x0=e.touches[0].clientX},{passive:true});
+  el.addEventListener("touchmove",e=>{if(x0!=null)el.style.transform="translateX("+(e.touches[0].clientX-x0)/2+"px)"},{passive:true});
+  el.addEventListener("touchend",e=>{if(x0==null)return;const dx=e.changedTouches[0].clientX-x0;x0=null;
+    if(dx>80)rate("yes");else if(dx<-80)rate("no");else el.style.transform=""});})();
+
+// ---------- Bearbeiten / Anlegen ----------
+function sheet(html){const r=$("sheetRoot");r.innerHTML=`<div class="sheet-bg"><div class="sheet">${html}</div></div>`;
+  r.firstChild.addEventListener("click",e=>{if(e.target===r.firstChild)closeSheet()});return r}
+const closeSheet=()=>{$("sheetRoot").innerHTML=""};
+function makeGap(sentence,form,c){
+  if(!sentence.trim())return "";
+  if(/\{.+?\}/.test(sentence))return sentence;
+  const tryWrap=w=>{if(!w)return null;const i=sentence.toLowerCase().indexOf(w.toLowerCase());return i<0?null:sentence.slice(0,i)+"{"+sentence.slice(i,i+w.length)+"}"+sentence.slice(i+w.length)};
+  let r=tryWrap(form.trim());if(r)return r;if(form.trim())return null;
+  const k=core(c),rx=s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+  if(!k.includes(" ")){for(const stem of [k,k.slice(0,Math.max(3,k.length-1))]){const m=sentence.match(new RegExp("(^|[^\\p{L}])("+rx(stem)+"\\p{L}*)","iu"));if(m)return tryWrap(m[2])}}
+  r=tryWrap(k);if(r)return r;
+  return null;
+}
+function editCard(c,fromLearn){
+  const isNew=!c.id, isUser=isNew||user.cards.some(x=>x.id===c.id);
+  const g=c.s?(c.s.match(/\{(.+?)\}/)||[])[1]||"":"";
+  sheet(`<h2>${isNew?"Neue Karte":"Karte bearbeiten"}</h2>
+   <label>Kartentyp</label><select id="eT"><option value="v"${c.t!=="w"?" selected":""}>Vokabel</option><option value="w"${c.t==="w"?" selected":""}>Wendung</option></select>
+   <label id="lDe">Deutsch</label><input id="eDe" value="${esc(c.de)}">
+   <label id="lSv">Schwedisch (mit en/ett)</label><input id="eSv" value="${esc(c.sv)}" autocapitalize="off">
+   <div id="vOnly">
+     <label>Pluralendung / Konjugation (optional)</label><input id="eInfo" value="${esc(c.info)}">
+     <label>Wortart</label><select id="eTyp">${["Subst.","Verb","Partikelverb","Adj.","Adv.","Ausdruck","Verbausdruck"].map(o=>`<option${o===c.typ?" selected":""}>${o}</option>`).join("")}</select>
+     <label>Schwedischer Beispielsatz (optional)</label><textarea id="eS">${esc((c.s||"").replace(/[{}]/g,""))}</textarea>
+     <label>Wort im Satz, falls gebeugt (z. B. „uppsägningen“)</label><input id="eForm" value="${esc(g)}" autocapitalize="off">
+     <label>Deutsche Übersetzung des Satzes</label><textarea id="eD">${esc((c.d||"").replace(/\*\*/g,""))}</textarea>
+   </div>
+   <div id="wOnly"><label>Weitere mögliche Antworten (eine pro Zeile)</label><textarea id="eAlt">${esc((c.alt||[]).join("\n"))}</textarea></div>
+   <label>Notiz (optional)</label><input id="eNote" value="${esc(c.note)}">
+   <div class="btns"><button class="secondary" id="eCancel">Abbrechen</button><button class="primary" id="eSave">Speichern</button></div>
+   ${isNew?"":`<button class="danger" id="eDel" style="width:100%;margin-top:14px">Karte löschen</button>`}`);
+  const sync=()=>{const w=$("eT").value==="w";$("vOnly").classList.toggle("hidden",w);$("wOnly").classList.toggle("hidden",!w);
+    $("lDe").textContent=w?"Situation auf Deutsch":"Deutsch";$("lSv").textContent=w?"Schwedische Wendung":"Schwedisch (mit en/ett)"};
+  $("eT").onchange=sync;sync();$("eCancel").onclick=closeSheet;
+  $("eSave").onclick=()=>{
+    const t=$("eT").value,n={t,de:$("eDe").value.trim(),sv:$("eSv").value.trim(),note:$("eNote").value.trim()};
+    if(!n.de||!n.sv){alert("Bitte Deutsch und Schwedisch ausfüllen.");return}
+    if(t==="w"){Object.assign(n,{typ:"Wendung",info:"",s:"",d:"",alt:$("eAlt").value.split("\n").map(x=>x.trim()).filter(Boolean)})}
+    else{n.info=$("eInfo").value.trim();n.typ=$("eTyp").value;n.alt=[];
+      const s=makeGap($("eS").value.trim(),$("eForm").value,n);
+      if(s===null){alert("Ich finde das Wort nicht im Satz. Bitte trag unter „Wort im Satz“ genau die Form ein, die im Satz steht.");return}
+      n.s=s;let d=$("eD").value.trim();
+      // fettes Wort in der Übersetzung: Deutsch-Wort markieren, falls vorhanden
+      const dw=n.de.split(",")[0].trim();if(d&&dw&&!d.includes("**")){const i=d.toLowerCase().indexOf(dw.toLowerCase());if(i>=0)d=d.slice(0,i)+"**"+d.slice(i,i+dw.length)+"**"+d.slice(i+dw.length)}
+      n.d=s?d:""}
+    if(isNew){n.id="u"+Date.now().toString(36);n.coll=c.coll;n.k=c.k;user.cards.push(n)}
+    else if(isUser){Object.assign(user.cards.find(x=>x.id===c.id),n)}
+    else user.edits[c.id]=n;
+    saveUser();closeSheet();afterEdit(fromLearn,c.id);
+  };
+  if(!isNew)$("eDel").onclick=()=>{if(!confirm("Diese Karte wirklich löschen?"))return;
+    if(isUser)user.cards=user.cards.filter(x=>x.id!==c.id);else user.deleted.push(c.id);
+    delete prog[c.id];saveProg();saveUser();closeSheet();
+    if(fromLearn){queue=queue.filter(x=>x.id!==c.id);next()}else renderColl()};
+}
+function afterEdit(fromLearn,id){
+  if(fromLearn){const nc=allCards().find(x=>x.id===id);if(nc){queue[0]=nc;cur=nc;const was=revealed;revealed=false;next();if(was){/* neu anzeigen */}}}
+  else renderColl();
+}
+function newColl(){
+  sheet(`<h2>Neue Sammlung</h2><label>Name</label><input id="cName" placeholder="z. B. Aus dem Job">
+   <div class="btns"><button class="secondary" id="cCancel">Abbrechen</button><button class="primary" id="cSave">Erstellen</button></div>`);
+  $("cName").focus();$("cCancel").onclick=closeSheet;
+  $("cSave").onclick=()=>{const n=$("cName").value.trim();if(!n)return;const id="c"+Date.now().toString(36);user.colls.push({id,name:n});saveUser();closeSheet();openColl(id)};
+}
+function renameColl(){
+  const col=getColl(curColl);
+  sheet(`<h2>Sammlung umbenennen</h2><label>Name</label><input id="cName" value="${esc(col.name)}">
+   <div class="btns"><button class="secondary" id="cCancel">Abbrechen</button><button class="primary" id="cSave">Speichern</button></div>
+   ${col.own?'<button class="danger" id="cDel" style="width:100%;margin-top:14px">Sammlung mit allen Karten löschen</button>':""}`);
+  $("cCancel").onclick=closeSheet;
+  $("cSave").onclick=()=>{const n=$("cName").value.trim();if(!n)return;
+    if(col.own)user.colls.find(x=>x.id===col.id).name=n;else user.names[col.id]=n;saveUser();closeSheet();renderColl()};
+  if(col.own)$("cDel").onclick=()=>{if(!confirm("Sammlung und alle ihre Karten löschen?"))return;
+    user.cards=user.cards.filter(c=>c.coll!==col.id);user.colls=user.colls.filter(x=>x.id!==col.id);saveUser();closeSheet();show("vHome");renderHome()};
+}
+function settings(){
+  sheet(`<h2>Einstellungen</h2>
+   <label>Tagesziel (Karten pro Tag)</label><input id="sGoal" type="number" min="1" max="500" value="${streak.goal}">
+   <label>Buchkarten</label><div class="muted small" style="line-height:1.5">${base.length} Karten ${EMBEDDED?"(fest eingebaut)":"geladen"}.</div>
+   ${EMBEDDED?"":'<button class="secondary" id="sLoad" style="width:100%;margin-top:8px">Karten laden (Datei)</button>'}
+   <button class="secondary" id="sExport" style="width:100%;margin-top:10px">Eigene Karten & Fortschritt sichern</button>
+   <button class="secondary" id="sImport" style="width:100%;margin-top:10px">Sicherung wiederherstellen</button>
+   <div class="btns"><button class="primary" id="sSave">Fertig</button></div>`);
+  $("sSave").onclick=()=>{const v=parseInt($("sGoal").value,10);if(v>0){streak.goal=v;const t=streak.days[dkey(Date.now())];if(t&&!t.met&&t.n>=v)t.met=true;saveStreak()}closeSheet();renderHome()};
+  if($("sLoad"))$("sLoad").onclick=()=>{fileMode="data";$("fileIn").click()};
+  $("sImport").onclick=()=>{fileMode="backup";$("fileIn").click()};
+  $("sExport").onclick=()=>{const blob=new Blob([JSON.stringify({backup:1,user,prog,streak})],{type:"application/json"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="affarssvenska-sicherung-"+dkey(Date.now())+".json";document.body.appendChild(a);a.click();a.remove()};
+}
+let fileMode="data";
+$("fileIn").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{try{const j=JSON.parse(r.result);
+    if(fileMode==="backup"){if(!j.backup)throw 0;user=Object.assign(user,j.user);prog=j.prog||{};streak=Object.assign(streak,j.streak);saveUser();saveProg();saveStreak();toast("Sicherung wiederhergestellt")}
+    else{const arr=Array.isArray(j)?j:j.cards;if(!Array.isArray(arr))throw 0;base=arr;LS.set("as-data",arr);toast(arr.length+" Karten geladen")}
+    closeSheet();renderHome()}catch(x){alert("Die Datei konnte nicht gelesen werden.")}};
+  r.readAsText(f);e.target.value=""};
+
+// ---------- Verdrahtung ----------
+function setTheme(t){document.documentElement.dataset.theme=t;$("themeBtn").textContent=t==="dark"?"☀️":"🌙";LS.set("as-theme",t)}
+setTheme(LS.get("as-theme","light"));
+$("themeBtn").onclick=()=>setTheme(document.documentElement.dataset.theme==="dark"?"light":"dark");
+$("setBtn").onclick=settings;$("newColl").onclick=newColl;
+$("learnAll").onclick=()=>startLearn(()=>true,"vHome");
+$("collBack").onclick=()=>{show("vHome");renderHome()};
+$("collRename").onclick=renameColl;
+$("collLearn").onclick=()=>{const col=getColl(curColl);startLearn(col.match,"vColl")};
+$("collAdd").onclick=()=>{const col=getColl(curColl);editCard({t:"v",de:"",sv:"",info:"",typ:"Subst.",s:"",d:"",coll:col.own?col.id:undefined,k:col.own?undefined:+col.id.slice(1)})};
+$("collReset").onclick=()=>{if(!confirm("Fortschritt nur für diese Sammlung zurücksetzen?"))return;allCards().filter(getColl(curColl).match).forEach(c=>delete prog[c.id]);saveProg();renderColl()};
+$("learnBack").onclick=()=>{try{speechSynthesis.cancel()}catch(e){}show(from);from==="vColl"?renderColl():renderHome()};
+$("check").onclick=reveal;$("hint").onclick=hint;
+$("rYes").onclick=()=>rate("yes");$("rNo").onclick=()=>rate("no");$("rNever").onclick=()=>rate("never");
+document.addEventListener("click",()=>{if(actx&&actx.state==="suspended")actx.resume()},{once:true});
+renderHome();
+if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{})}
+</script>
+</body>
+</html>
