@@ -243,6 +243,35 @@ function pickVoice(){const vs=speechSynthesis.getVoices().filter(v=>(v.lang||"")
 if("speechSynthesis" in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}
 function speak(text){if(!("speechSynthesis" in window))return;if(!voice||!/oskar/i.test(voice.name))pickVoice();speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang="sv-SE";if(voice)u.voice=voice;speechSynthesis.speak(u)}
 
+// ---------- Satz generieren (Anthropic API) ----------
+const MODELS=["claude-haiku-5-5","claude-sonnet-5-5"];
+async function genSentence(key,word,de,topic){
+  const prompt=`Du erstellst eine Lernkarte für einen deutschsprachigen Erwachsenen, der Business-Schwedisch auf Niveau B1–B2 lernt.
+Lernwort: "${word}"${de?` (deutsche Bedeutung: ${de})`:""}. Ist das Wort deutsch, nimm die gängigste schwedische Entsprechung.
+Bestimme Grundform (bei Substantiven mit en/ett davor), Wortart, Pluralendung bzw. Konjugationsgruppe (1–4 wie in schwedischen Lehrbüchern) und eine kurze deutsche Bedeutung.
+Schreibe EINEN natürlichen, idiomatischen schwedischen Beispielsatz aus dem Arbeitsleben${topic?` (Thema der Sammlung: ${topic})`:""}, 8–16 Wörter, wie ihn ein Muttersprachler im Büro sagen würde. Markiere das Lernwort in genau der Form, in der es im Satz steht, genau einmal mit geschweiften Klammern.
+Übersetze den Satz in natürliches Deutsch und setze die Entsprechung des Lernworts samt Artikel in **doppelte Sternchen**.
+Antworte NUR mit JSON, ohne Erklärung und ohne Codeblock:
+{"sv":"ett företag","de":"Unternehmen","typ":"Subst.","info":"-","s":"Hon har arbetat på samma {företag} i tio år.","d":"Sie arbeitet seit zehn Jahren in **demselben Unternehmen**."}
+"typ" ist eines von: Subst., Verb, Partikelverb, Adj., Adv., Ausdruck, Verbausdruck.`;
+  let last="";
+  for(const model of MODELS){
+    let r;
+    try{r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model,max_tokens:600,temperature:1,messages:[{role:"user",content:prompt}]})})}
+    catch(e){throw new Error("Keine Verbindung. Bist du online?")}
+    if(r.status===401)throw new Error("Der API-Schlüssel stimmt nicht. Bitte unter ⚙︎ prüfen.");
+    if(r.status===402||r.status===403)throw new Error("Kein Guthaben oder kein Zugriff. Bitte in der Console prüfen.");
+    if(r.status===429)throw new Error("Zu viele Anfragen. Bitte kurz warten.");
+    if(r.status===404||r.status===400){last=await r.text();if(/model/i.test(last))continue;throw new Error("Anfrage abgelehnt.")}
+    if(!r.ok)throw new Error("Fehler beim Erzeugen ("+r.status+"). Bitte noch einmal versuchen.");
+    const j=await r.json();const txt=(j.content||[]).map(x=>x.text||"").join("").replace(/```json|```/g,"").trim();
+    const o=JSON.parse(txt.slice(txt.indexOf("{"),txt.lastIndexOf("}")+1));
+    if(!o.s||!/\{.+?\}/.test(o.s))throw new Error("Der Satz war unbrauchbar. Bitte noch einmal versuchen.");
+    return o;
+  }
+  throw new Error("Kein passendes Modell gefunden.");
+}
 // ---------- Ansichten ----------
 function show(id){["vHome","vColl","vLearn"].forEach(v=>$(v).classList.toggle("hidden",v!==id));window.scrollTo(0,0)}
 function renderHome(){
@@ -374,6 +403,7 @@ function editCard(c,fromLearn){
    <label>Kartentyp</label><select id="eT"><option value="v"${c.t!=="w"?" selected":""}>Vokabel</option><option value="w"${c.t==="w"?" selected":""}>Wendung</option></select>
    <label id="lDe">Deutsch</label><input id="eDe" value="${esc(c.de)}">
    <label id="lSv">Schwedisch (mit en/ett)</label><input id="eSv" value="${esc(c.sv)}" autocapitalize="off">
+   <div id="genRow"><button class="secondary" id="eGen" type="button" style="width:100%;margin-top:10px">✨ Satz generieren</button><div class="muted small" id="genMsg" style="margin-top:6px"></div></div>
    <div id="vOnly">
      <label>Pluralendung / Konjugation (optional)</label><input id="eInfo" value="${esc(c.info)}">
      <label>Wortart</label><select id="eTyp">${["Subst.","Verb","Partikelverb","Adj.","Adv.","Ausdruck","Verbausdruck"].map(o=>`<option${o===c.typ?" selected":""}>${o}</option>`).join("")}</select>
@@ -385,7 +415,23 @@ function editCard(c,fromLearn){
    <label>Notiz (optional)</label><input id="eNote" value="${esc(c.note)}">
    <div class="btns"><button class="secondary" id="eCancel">Abbrechen</button><button class="primary" id="eSave">Speichern</button></div>
    ${isNew?"":`<button class="danger" id="eDel" style="width:100%;margin-top:14px">Karte löschen</button>`}`);
-  const sync=()=>{const w=$("eT").value==="w";$("vOnly").classList.toggle("hidden",w);$("wOnly").classList.toggle("hidden",!w);
+  let generated=!!c.ki;
+  $("eGen").onclick=async()=>{
+    const word=$("eSv").value.trim()||$("eDe").value.trim();
+    if(!word){$("genMsg").textContent="Bitte zuerst das Wort eintragen.";return}
+    const key=LS.get("as-key","");
+    if(!key){$("genMsg").textContent="Bitte zuerst unter ⚙︎ deinen API-Schlüssel eintragen.";return}
+    const b=$("eGen");b.disabled=true;b.textContent="Erzeuge Satz …";$("genMsg").textContent="";
+    try{const col=c.coll?getColl(c.coll):(c.k?getColl("k"+c.k):null);
+      const o=await genSentence(key,word,$("eDe").value.trim(),col?col.name:"");
+      $("eSv").value=o.sv||word;if(!$("eDe").value.trim())$("eDe").value=o.de||"";
+      $("eInfo").value=o.info||"";if(o.typ)$("eTyp").value=o.typ;
+      const m=(o.s||"").match(/\{(.+?)\}/);$("eS").value=(o.s||"").replace(/[{}]/g,"");$("eForm").value=m?m[1]:"";
+      $("eD").value=o.d||"";generated=true;$("genMsg").textContent="Fertig – bitte kurz prüfen. Mit dem Knopf bekommst du einen anderen Satz.";
+    }catch(e){$("genMsg").textContent=e.message||"Das hat nicht geklappt. Bitte noch einmal versuchen."}
+    b.disabled=false;b.textContent="✨ Anderen Satz generieren";
+  };
+  const sync=()=>{const w=$("eT").value==="w";$("vOnly").classList.toggle("hidden",w);$("wOnly").classList.toggle("hidden",!w);$("genRow").classList.toggle("hidden",w);
     $("lDe").textContent=w?"Situation auf Deutsch":"Deutsch";$("lSv").textContent=w?"Schwedische Wendung":"Schwedisch (mit en/ett)"};
   $("eT").onchange=sync;sync();$("eCancel").onclick=closeSheet;
   $("eSave").onclick=()=>{
@@ -399,6 +445,7 @@ function editCard(c,fromLearn){
       // fettes Wort in der Übersetzung: Deutsch-Wort markieren, falls vorhanden
       const dw=n.de.split(",")[0].trim();if(d&&dw&&!d.includes("**")){const i=d.toLowerCase().indexOf(dw.toLowerCase());if(i>=0)d=d.slice(0,i)+"**"+d.slice(i,i+dw.length)+"**"+d.slice(i+dw.length)}
       n.d=s?d:""}
+    if(generated&&t==="v")n.ki=true;
     if(isNew){n.id="u"+Date.now().toString(36);n.coll=c.coll;n.k=c.k;user.cards.push(n)}
     else if(isUser){Object.assign(user.cards.find(x=>x.id===c.id),n)}
     else user.edits[c.id]=n;
@@ -437,11 +484,13 @@ function settings(){
    ${EMBEDDED?"":'<button class="secondary" id="sLoad" style="width:100%;margin-top:8px">Karten laden (Datei)</button>'}
    <label>Kartenwerkstatt</label><div class="muted small" style="line-height:1.5">Eigene Wörter mit KI-Sätzen erstellst du in der <a href="https://claude.ai/artifact/3pAhjix3ocXyFfxuupeEUY" target="_blank" rel="noopener" style="color:var(--blue)">Kartenwerkstatt auf claude.ai</a>.</div>
    <button class="secondary" id="sWerk" style="width:100%;margin-top:8px">Werkstatt-Karten importieren</button>
+   <label>Anthropic-API-Schlüssel (für „Satz generieren“)</label><input id="sKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sk-ant-…" value="${esc(LS.get("as-key",""))}">
+   <div class="muted small" style="margin-top:4px;line-height:1.5">Wird nur auf diesem Gerät gespeichert.</div>
    <label>Sicherung</label>
    <button class="secondary" id="sExport" style="width:100%">Eigene Karten & Fortschritt sichern</button>
    <button class="secondary" id="sImport" style="width:100%;margin-top:10px">Sicherung wiederherstellen</button>
    <div class="btns"><button class="primary" id="sSave">Fertig</button></div>`);
-  $("sSave").onclick=()=>{const v=parseInt($("sGoal").value,10);if(v>0){streak.goal=v;const t=streak.days[dkey(Date.now())];if(t&&!t.met&&t.n>=v)t.met=true;saveStreak()}closeSheet();renderHome()};
+  $("sSave").onclick=()=>{LS.set("as-key",$("sKey").value.trim());const v=parseInt($("sGoal").value,10);if(v>0){streak.goal=v;const t=streak.days[dkey(Date.now())];if(t&&!t.met&&t.n>=v)t.met=true;saveStreak()}closeSheet();renderHome()};
   if($("sLoad"))$("sLoad").onclick=()=>{fileMode="data";$("fileIn").click()};
   $("sImport").onclick=()=>{fileMode="backup";$("fileIn").click()};
   $("sWerk").onclick=()=>{fileMode="werkstatt";$("fileIn").click()};
