@@ -255,8 +255,10 @@ Schreibe EINEN natürlichen, idiomatischen schwedischen Beispielsatz aus dem Arb
 Antworte NUR mit JSON, ohne Erklärung und ohne Codeblock:
 {"sv":"ett företag","de":"Unternehmen","typ":"Subst.","info":"-","s":"Hon har arbetat på samma {företag} i tio år.","d":"Sie arbeitet seit zehn Jahren in **demselben Unternehmen**."}
 "typ" ist eines von: Subst., Verb, Partikelverb, Adj., Adv., Ausdruck, Verbausdruck.`;
-  let last="";
-  for(const model of MODELS){
+  let last="",tries=0;
+  const order=[MODELS[0],MODELS[0],MODELS[1],MODELS[1]];
+  for(let mi=0;mi<order.length;mi++){const model=order[mi];
+    if(mi%2===1&&!/stop_reason/.test(last)&&last)continue;
     let r;
     try{r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
       body:JSON.stringify({model,max_tokens:600,temperature:1,messages:[{role:"user",content:prompt}]})})}
@@ -264,14 +266,17 @@ Antworte NUR mit JSON, ohne Erklärung und ohne Codeblock:
     if(r.status===401)throw new Error("Der API-Schlüssel stimmt nicht. Bitte unter ⚙︎ prüfen.");
     if(r.status===402||r.status===403)throw new Error("Kein Guthaben oder kein Zugriff. Bitte in der Console prüfen.");
     if(r.status===429)throw new Error("Zu viele Anfragen. Bitte kurz warten.");
-    if(r.status===404||r.status===400){last=await r.text();if(/model/i.test(last))continue;throw new Error("Anfrage abgelehnt.")}
-    if(!r.ok)throw new Error("Fehler beim Erzeugen ("+r.status+"). Bitte noch einmal versuchen.");
-    const j=await r.json();const txt=(j.content||[]).map(x=>x.text||"").join("").replace(/```json|```/g,"").trim();
-    const o=JSON.parse(txt.slice(txt.indexOf("{"),txt.lastIndexOf("}")+1));
-    if(!o.s||!/\{.+?\}/.test(o.s))throw new Error("Der Satz war unbrauchbar. Bitte noch einmal versuchen.");
+    if(r.status===404||r.status===400){last=await r.text();if(/model/i.test(last)){mi+=(mi%2===0?1:0);continue}throw new Error("Anfrage abgelehnt: "+last.slice(0,160))}
+    const raw=await r.text();
+    if(!r.ok)throw new Error("Fehler "+r.status+": "+raw.slice(0,160));
+    let j=null;try{j=JSON.parse(raw)}catch(e){throw new Error("Antwort nicht lesbar (Status "+r.status+", "+raw.length+" Zeichen): "+raw.slice(0,160))}
+    const txt=(j.content||[]).filter(x=>x.type==="text").map(x=>x.text||"").join("").replace(/```json|```/g,"").trim();
+    const m=txt.match(/\{[\s\S]*\}/);
+    let o=null;if(m){try{o=JSON.parse(m[0])}catch(e){}}
+    if(!o||!o.s||!/\{.+?\}/.test(o.s)){last="Modell "+model+", stop_reason "+(j.stop_reason||"?")+": "+(txt||JSON.stringify(j)).slice(0,160);if(++tries<3)continue;throw new Error("Kein brauchbarer Satz. Details: "+last)}
     return o;
   }
-  throw new Error("Kein passendes Modell gefunden.");
+  throw new Error("Kein passendes Modell gefunden. Details: "+String(last).slice(0,160));
 }
 // ---------- Ansichten ----------
 function show(id){["vHome","vColl","vLearn"].forEach(v=>$(v).classList.toggle("hidden",v!==id));window.scrollTo(0,0)}
