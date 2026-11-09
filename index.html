@@ -138,6 +138,7 @@ textarea.solo{min-height:84px;text-align:left;resize:vertical;font-weight:600}
     <div class="week" id="week"></div>
   </div>
   <button class="primary" id="learnAll">Alle fälligen Karten lernen</button>
+  <button class="secondary" id="newWord" style="width:100%;margin-top:10px;padding:14px">＋ Neues Wort mit KI-Satz</button>
   <div id="noData" class="empty hidden" style="margin-top:16px">Noch keine Buchkarten geladen.<br>Tippe auf ⚙︎ und dann auf „Karten laden“.</div>
   <div class="section-title"><h2>Sammlungen</h2><button class="secondary" id="newColl">+ Sammlung</button></div>
   <div class="grid" id="grid"></div>
@@ -400,6 +401,7 @@ function editCard(c,fromLearn){
   const isNew=!c.id, isUser=isNew||user.cards.some(x=>x.id===c.id);
   const g=c.s?(c.s.match(/\{(.+?)\}/)||[])[1]||"":"";
   sheet(`<h2>${isNew?"Neue Karte":"Karte bearbeiten"}</h2>
+   ${c.pick?`<label>Sammlung</label><select id="eColl">${collections().map(x=>`<option value="${x.id}"${x.id===c.pick?" selected":""}>${esc(x.name)}</option>`).join("")}${user.colls.some(x=>x.name==="Meine Wörter")?"":`<option value="__new__"${c.pick==="__new__"?" selected":""}>Meine Wörter (neu)</option>`}</select>`:""}
    <label>Kartentyp</label><select id="eT"><option value="v"${c.t!=="w"?" selected":""}>Vokabel</option><option value="w"${c.t==="w"?" selected":""}>Wendung</option></select>
    <label id="lDe">Deutsch</label><input id="eDe" value="${esc(c.de)}">
    <label id="lSv">Schwedisch (mit en/ett)</label><input id="eSv" value="${esc(c.sv)}" autocapitalize="off">
@@ -446,10 +448,14 @@ function editCard(c,fromLearn){
       const dw=n.de.split(",")[0].trim();if(d&&dw&&!d.includes("**")){const i=d.toLowerCase().indexOf(dw.toLowerCase());if(i>=0)d=d.slice(0,i)+"**"+d.slice(i,i+dw.length)+"**"+d.slice(i+dw.length)}
       n.d=s?d:""}
     if(generated&&t==="v")n.ki=true;
+    if(isNew&&c.pick){let cid=$("eColl").value;
+      if(cid==="__new__"){cid="c"+Date.now().toString(36);user.colls.push({id:cid,name:"Meine Wörter"})}
+      LS.set("as-lastcoll",cid);
+      if(cid.startsWith("k")&&!user.colls.some(x=>x.id===cid)){c.k=+cid.slice(1);c.coll=undefined}else{c.coll=cid;c.k=undefined}}
     if(isNew){n.id="u"+Date.now().toString(36);n.coll=c.coll;n.k=c.k;user.cards.push(n)}
     else if(isUser){Object.assign(user.cards.find(x=>x.id===c.id),n)}
     else user.edits[c.id]=n;
-    saveUser();closeSheet();afterEdit(fromLearn,c.id);
+    saveUser();closeSheet();if(c.pick){renderHome();toast("Karte gespeichert")}else afterEdit(fromLearn,c.id);
   };
   if(!isNew)$("eDel").onclick=()=>{if(!confirm("Diese Karte wirklich löschen?"))return;
     if(isUser)user.cards=user.cards.filter(x=>x.id!==c.id);else user.deleted.push(c.id);
@@ -513,7 +519,10 @@ $("fileIn").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new File
 function setTheme(t){document.documentElement.dataset.theme=t;$("themeBtn").textContent=t==="dark"?"☀️":"🌙";LS.set("as-theme",t)}
 setTheme(LS.get("as-theme","light"));
 $("themeBtn").onclick=()=>setTheme(document.documentElement.dataset.theme==="dark"?"light":"dark");
-$("setBtn").onclick=settings;$("newColl").onclick=newColl;
+$("setBtn").onclick=settings;
+$("newWord").onclick=()=>{const last=LS.get("as-lastcoll","");const ok=collections().some(x=>x.id===last);
+  const mw=user.colls.find(x=>x.name==="Meine Wörter");
+  editCard({t:"v",de:"",sv:"",info:"",typ:"Subst.",s:"",d:"",pick:ok?last:(mw?mw.id:"__new__")})};$("newColl").onclick=newColl;
 $("learnAll").onclick=()=>{allCards().some(isDue)?startLearn(()=>true,"vHome"):startPractice(()=>true,"vHome")};
 let lastFilter=()=>true;
 $("donePractice").onclick=()=>startPractice(lastFilter,from);
