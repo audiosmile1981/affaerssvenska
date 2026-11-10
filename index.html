@@ -153,7 +153,7 @@ table.st{width:100%;border-collapse:collapse;font-size:.9rem}table.st td,table.s
     <div class="week" id="week"></div>
   </div>
   <button class="primary" id="learnAll">Alle fälligen Karten lernen</button>
-  <button class="secondary" id="newWord" style="width:100%;margin-top:10px;padding:14px">＋ Neues Wort mit KI-Satz</button>
+  <div class="row" style="margin-top:10px"><button class="secondary" id="newWord" style="flex:1;padding:14px 8px">＋ Neues Wort</button><button class="secondary" id="suggBtn" style="flex:1;padding:14px 8px">💡 Wortvorschläge</button></div>
   <div id="noData" class="empty hidden" style="margin-top:16px">Noch keine Buchkarten geladen.<br>Tippe auf ⚙︎ und dann auf „Karten laden“.</div>
   <div class="section-title"><h2>Sammlungen</h2><button class="secondary" id="newColl">+ Sammlung</button></div>
   <div class="grid" id="grid"></div>
@@ -162,6 +162,7 @@ table.st{width:100%;border-collapse:collapse;font-size:.9rem}table.st td,table.s
 <section id="vColl" class="hidden">
   <div class="row"><button class="icon-btn" id="collBack" aria-label="Zurück">‹</button><h2 id="collName" style="flex:1"></h2><button class="icon-btn" id="collRename" aria-label="Sammlung umbenennen">✎</button></div>
   <div class="row" style="margin-top:14px"><button class="primary" id="collLearn" style="flex:2">Lernen</button><button class="secondary" id="collAdd" style="flex:1;padding:15px 10px">+ Karte</button></div>
+  <button class="secondary hidden" id="collFill" style="width:100%;margin-top:10px;padding:12px">✨ Sätze ergänzen</button>
   <div class="list" id="collList"></div>
   <button class="small secondary hidden" id="collReset" style="margin-top:14px;width:100%">Fortschritt dieser Sammlung zurücksetzen</button>
 </section>
@@ -192,6 +193,7 @@ table.st{width:100%;border-collapse:collapse;font-size:.9rem}table.st td,table.s
 const EMBEDDED = /*__DATA__*/null;
 const CHAPTERS = {1:"Kap. 1 – Personalen. Kontoret.",2:"Kap. 2 – Att vara anställd. Besök på banken.",3:"Kap. 3 – Att samtala i telefon",4:"Kap. 4 – Samtal på arbetet",5:"Kap. 5 – Besök på en mässa",6:"Kap. 6 – Besök hos en tillverkare",7:"Kap. 7 – Presentation av ett företags verksamhet",8:"Kap. 8 – Eira sammanfattar sina intryck"};
 const RV_CHAPTERS = {1:"Rivstart 1 – Arbetsmarknad och arbetstagare",2:"Rivstart 2 – Arbetsplatser",3:"Rivstart 3 – Arbetsplatskultur",4:"Rivstart 4 – Kundkontakt",5:"Rivstart 5 – Arbetsmiljö",6:"Rivstart 6 – Socialt på jobbet",7:"Rivstart 7 – Möten",8:"Rivstart 8 – Projekt och grupper"};
+const FX_CHAPTERS = {1:"Lön & förmåner",2:"Anställning & arbetsrätt",3:"Skatt & myndigheter",4:"Ekonomi & redovisning",5:"Bank, finans & betalning",6:"Företagsformer & juridik",7:"Handel & marknad"};
 const STEPS=[1,2,4,7,10,14], DAY=86400000;
 
 // ---------- Speicher ----------
@@ -213,6 +215,8 @@ function collections(){
   ks.forEach(k=>out.push({id:"k"+k,book:"Affärssvenska",name:user.names["k"+k]||CHAPTERS[k]||("Kap. "+k),match:c=>c.k===k&&!c.b&&!c.coll}));
   const rs=[...new Set(cs.filter(c=>c.b==="rv"&&!c.coll).map(c=>c.k))].sort((a,b)=>a-b);
   rs.forEach(k=>out.push({id:"rv"+k,book:"Rivstart Yrkesliv",name:user.names["rv"+k]||RV_CHAPTERS[k]||("Rivstart "+k),match:c=>c.b==="rv"&&c.k===k&&!c.coll}));
+  const fs=[...new Set(cs.filter(c=>c.b==="fx"&&!c.coll).map(c=>c.k))].sort((a,b)=>a-b);
+  fs.forEach(k=>out.push({id:"fx"+k,book:"Fortnox-Begriffe",name:user.names["fx"+k]||FX_CHAPTERS[k]||("Fortnox "+k),match:c=>c.b==="fx"&&c.k===k&&!c.coll}));
   user.colls.forEach(col=>out.push({id:col.id,book:"Eigene Sammlungen",name:col.name,own:true,match:c=>c.coll===col.id}));
   return out;
 }
@@ -290,13 +294,16 @@ Schreibe EINEN natürlichen, idiomatischen schwedischen Beispielsatz aus dem Arb
 Antworte NUR mit JSON, ohne Erklärung und ohne Codeblock:
 {"sv":"ett företag","de":"Unternehmen","typ":"Subst.","info":"-","s":"Hon har arbetat på samma {företag} i tio år.","d":"Sie arbeitet seit zehn Jahren in **demselben Unternehmen**."}
 "typ" ist eines von: Subst., Verb, Partikelverb, Adj., Adv., Ausdruck, Verbausdruck.`;
+  return askJSON(key,prompt);
+}
+async function askJSON(key,prompt,list){
   let last="",tries=0,noThink=true;
   const order=[MODELS[0],MODELS[0],MODELS[1],MODELS[1]];
   for(let mi=0;mi<order.length;mi++){const model=order[mi];
     if(mi%2===1&&!/stop_reason/.test(last)&&last)continue;
     let r;
     try{r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-      body:JSON.stringify(Object.assign({model,max_tokens:3000,messages:[{role:"user",content:prompt}]},noThink?{thinking:{type:"disabled"}}:{}))})}
+      body:JSON.stringify(Object.assign({model,max_tokens:list?8000:3000,messages:[{role:"user",content:prompt}]},noThink?{thinking:{type:"disabled"}}:{}))})}
     catch(e){throw new Error("Keine Verbindung. Bist du online?")}
     if(r.status===401)throw new Error("Der API-Schlüssel stimmt nicht. Bitte unter ⚙︎ prüfen.");
     if(r.status===402||r.status===403)throw new Error("Kein Guthaben oder kein Zugriff. Bitte in der Console prüfen.");
@@ -307,12 +314,94 @@ Antworte NUR mit JSON, ohne Erklärung und ohne Codeblock:
     if(!r.ok)throw new Error("Fehler "+r.status+": "+raw.slice(0,160));
     let j=null;try{j=JSON.parse(raw)}catch(e){throw new Error("Antwort nicht lesbar (Status "+r.status+", "+raw.length+" Zeichen): "+raw.slice(0,160))}
     const txt=(j.content||[]).filter(x=>x.type==="text").map(x=>x.text||"").join("").replace(/```json|```/g,"").trim();
-    const m=txt.match(/\{[\s\S]*\}/);
+    const m=txt.match(list?/\[[\s\S]*\]/:/\{[\s\S]*\}/);
     let o=null;if(m){try{o=JSON.parse(m[0])}catch(e){}}
+    if(list){if(Array.isArray(o)&&o.length)return o;last="Modell "+model+", stop_reason "+(j.stop_reason||"?")+": "+(txt||"").slice(0,160);if(++tries<3)continue;throw new Error("Keine brauchbare Antwort. Details: "+last)}
     if(!o||!o.s||!/\{.+?\}/.test(o.s)){last="Modell "+model+", stop_reason "+(j.stop_reason||"?")+": "+(txt||JSON.stringify(j)).slice(0,160);if(++tries<3)continue;throw new Error("Kein brauchbarer Satz. Details: "+last)}
     return o;
   }
   throw new Error("Kein passendes Modell gefunden. Details: "+String(last).slice(0,160));
+}
+async function translateSentence(key,word,de,sv,dt,dir){
+  const prompt=`Du hilfst einem deutschsprachigen Erwachsenen, der Business-Schwedisch auf Niveau B1–B2 lernt, eine Lernkarte zu erstellen.
+Lernwort: "${word}"${de?` (deutsche Bedeutung: ${de})`:""}.
+${dir==="sv2de"?`Hier ist ein schwedischer Beispielsatz:\n"${sv}"\nÜbersetze ihn in natürliches, idiomatisches Deutsch. Ändere den schwedischen Satz nicht, außer um offensichtliche Tippfehler zu korrigieren.`:`Hier ist ein deutscher Beispielsatz:\n"${dt}"\nÜbersetze ihn in natürliches, idiomatisches Schwedisch, wie es ein Muttersprachler im Büro sagen würde. Verwende darin das Lernwort. Ändere den deutschen Satz nicht, außer um offensichtliche Tippfehler zu korrigieren.`}
+Antworte sofort, ohne lange nachzudenken.
+Markiere im schwedischen Satz das Lernwort in genau der Form, in der es im Satz steht, genau einmal mit geschweiften Klammern.
+Setze im deutschen Satz die Entsprechung des Lernworts samt Artikel in **doppelte Sternchen**.
+Antworte NUR mit JSON, ohne Erklärung und ohne Codeblock:
+{"s":"Hon har arbetat på samma {företag} i tio år.","d":"Sie arbeitet seit zehn Jahren in **demselben Unternehmen**."}`;
+  return askJSON(key,prompt);
+}
+const CARD_RULES=`Schreibe für jedes Wort EINEN natürlichen, idiomatischen schwedischen Beispielsatz aus dem Arbeitsleben, 8–16 Wörter, wie ihn ein Muttersprachler im Büro sagen würde. Markiere das Lernwort in genau der Form, in der es im Satz steht, genau einmal mit geschweiften Klammern. Übersetze den Satz in natürliches Deutsch und setze die Entsprechung des Lernworts samt Artikel in **doppelte Sternchen**. Antworte sofort, ohne lange nachzudenken.`;
+async function genBatch(key,items,topic){
+  const prompt=`Du erstellst Lernkarten für einen deutschsprachigen Erwachsenen, der Business-Schwedisch auf Niveau B1–B2 lernt${topic?` (Thema: ${topic})`:""}.
+${CARD_RULES}
+Antworte NUR mit einem JSON-Array in derselben Reihenfolge, ein Objekt pro Wort, ohne Erklärung und ohne Codeblock:
+[{"s":"Hon har arbetat på samma {företag} i tio år.","d":"Sie arbeitet seit zehn Jahren in **demselben Unternehmen**."}]
+Wörter:
+${items.map((c,i)=>`${i+1}. ${c.sv} – ${c.de}`).join("\n")}`;
+  return askJSON(key,prompt,true);
+}
+async function fillSentences(colId){
+  const key=LS.get("as-key","");if(!key){alert("Bitte zuerst unter ⚙︎ deinen API-Schlüssel eintragen.");return}
+  const col=getColl(colId),todo=allCards().filter(col.match).filter(c=>c.t==="v"&&!c.s);
+  if(!todo.length)return;
+  const b=$("collFill");b.disabled=true;let done=0,fail=0;
+  for(let i=0;i<todo.length;i+=8){
+    const part=todo.slice(i,i+8);b.textContent=`Erzeuge Sätze … ${Math.min(i+8,todo.length)} / ${todo.length}`;
+    try{const res=await genBatch(key,part,col.name);
+      part.forEach((c,j)=>{const o=res[j];if(!o||!o.s||!/\{.+?\}/.test(o.s)){fail++;return}
+        const upd={s:o.s,d:o.d||"",ki:true};
+        const uc=user.cards.find(x=>x.id===c.id);if(uc)Object.assign(uc,upd);else user.edits[c.id]=Object.assign({},user.edits[c.id]||{},upd);done++});
+      saveUser();
+    }catch(e){fail+=part.length;if(/Schlüssel|Guthaben|Verbindung/.test(e.message)){alert(e.message);break}}
+  }
+  b.disabled=false;renderColl();toast(done+" Sätze ergänzt"+(fail?` · ${fail} nicht geklappt`:""));
+}
+async function suggestWords(key,topic,count){
+  const known=[...new Set(allCards().filter(c=>c.t==="v").map(c=>core(c).toLowerCase()))].join(", ");
+  const prompt=`Du erstellst Lernkarten für einen deutschsprachigen HR-Profi, der Business-Schwedisch auf Niveau B1–B2 lernt und in Schweden arbeiten möchte.
+Schlage ${count} nützliche, gebräuchliche schwedische Wörter oder feste Wendungen zum Thema „${topic}“ vor, die im schwedischen Berufsalltag wirklich verwendet werden. Nur echte, gängige Wörter, nichts Erfundenes, keine veralteten Begriffe.
+Diese Wörter kennt der Lernende schon, schlage KEINES davon vor: ${known}
+Gib für jedes Wort Grundform (bei Substantiven mit en/ett davor), kurze deutsche Bedeutung, Wortart (eines von: Subst., Verb, Partikelverb, Adj., Adv., Ausdruck, Verbausdruck) und Pluralendung bzw. Konjugationsgruppe (1–4) an.
+${CARD_RULES}
+Antworte NUR mit einem JSON-Array, ohne Erklärung und ohne Codeblock:
+[{"sv":"en introduktion","de":"Einarbeitung, Onboarding","typ":"Subst.","info":"-er","s":"Alla nyanställda får en {introduktion} under första veckan.","d":"Alle neuen Mitarbeitenden bekommen in der ersten Woche **eine Einarbeitung**."}]`;
+  return askJSON(key,prompt,true);
+}
+function suggestSheet(){
+  const own=user.colls;const last=LS.get("as-lastsugg","");
+  sheet(`<h2>💡 Wortvorschläge</h2>
+   <div class="muted small" style="line-height:1.5;margin-top:4px">Die App schlägt dir neue Wörter vor, die noch nicht in deinen Karten stehen, gleich mit Beispielsatz. Du wählst aus, was du behalten möchtest.</div>
+   <label>Thema</label><input id="sgTopic" placeholder="z. B. Onboarding, Gehaltsverhandlung, Arbeitsrecht" value="${esc(LS.get("as-lasttopic",""))}">
+   <label>Anzahl</label><select id="sgCount"><option>5</option><option selected>10</option><option>15</option></select>
+   <label>In welche Sammlung?</label><select id="sgColl">${own.map(x=>`<option value="${x.id}"${x.id===last?" selected":""}>${esc(x.name)}</option>`).join("")}<option value="__new__"${!own.length?" selected":""}>Neue Sammlung …</option></select>
+   <input id="sgNew" placeholder="Name der neuen Sammlung" style="margin-top:8px" class="${own.length?"hidden":""}">
+   <div class="btns"><button class="secondary" id="sgCancel">Abbrechen</button><button class="primary" id="sgGo">Vorschläge holen</button></div>
+   <div class="msg" id="sgMsg"></div><div id="sgList"></div>`);
+  $("sgColl").onchange=()=>$("sgNew").classList.toggle("hidden",$("sgColl").value!=="__new__");
+  $("sgCancel").onclick=closeSheet;
+  $("sgGo").onclick=async()=>{
+    const key=LS.get("as-key","");if(!key){$("sgMsg").textContent="Bitte zuerst unter ⚙︎ deinen API-Schlüssel eintragen.";return}
+    const topic=$("sgTopic").value.trim();if(!topic){$("sgMsg").textContent="Bitte ein Thema eintragen.";return}
+    LS.set("as-lasttopic",topic);const b=$("sgGo");b.disabled=true;b.textContent="Suche Wörter …";$("sgMsg").textContent="";$("sgList").innerHTML="";
+    try{const res=(await suggestWords(key,topic,+$("sgCount").value)).filter(o=>o&&o.sv&&o.de);
+      const knownSet=new Set(allCards().map(c=>core(c).toLowerCase()));
+      const list=res.filter(o=>!knownSet.has(core({sv:o.sv}).toLowerCase()));
+      $("sgList").innerHTML=list.map((o,i)=>`<label class="item" style="cursor:pointer;margin:0;border:1px solid var(--line);border-radius:12px;margin-top:8px;align-items:flex-start;color:var(--ink);font-weight:400"><input type="checkbox" data-i="${i}" checked style="width:auto;margin-top:4px"><span class="t"><b>${esc(o.sv)}</b><span>${esc(o.de)}</span>${o.s?`<span style="display:block;margin-top:4px">${esc(o.s.replace(/[{}]/g,""))}</span>`:""}</span></label>`).join("")+
+        (list.length?`<div class="btns"><button class="primary" id="sgTake">Ausgewählte übernehmen</button></div>`:`<div class="muted small" style="margin-top:8px">Keine neuen Wörter gefunden. Versuch ein anderes Thema.</div>`);
+      if(list.length)$("sgTake").onclick=()=>{
+        let cid=$("sgColl").value;
+        if(cid==="__new__"){const nm=$("sgNew").value.trim()||topic;cid="c"+Date.now().toString(36);user.colls.push({id:cid,name:nm})}
+        LS.set("as-lastsugg",cid);let n=0;
+        $("sgList").querySelectorAll("input[type=checkbox]").forEach(cb=>{if(!cb.checked)return;const o=list[+cb.dataset.i];
+          const ok=o.s&&/\{.+?\}/.test(o.s);
+          user.cards.push({id:"u"+Date.now().toString(36)+cb.dataset.i,t:"v",de:o.de,sv:o.sv,info:o.info||"",typ:o.typ||"Subst.",s:ok?o.s:"",d:ok?(o.d||""):"",alt:[],note:"",ki:true,coll:cid});n++});
+        saveUser();closeSheet();renderHome();toast(n+" Karten übernommen")};
+    }catch(e){$("sgMsg").textContent=e.message||"Das hat nicht geklappt."}
+    b.disabled=false;b.textContent="Neue Vorschläge holen";
+  };
 }
 // ---------- Ansichten ----------
 function show(id){["vHome","vColl","vLearn","vStats"].forEach(v=>$(v).classList.toggle("hidden",v!==id));window.scrollTo(0,0)}
@@ -343,6 +432,7 @@ function renderColl(){
   const items=allCards().filter(col.match);
   const nd=items.filter(isDue).length;$("collLearn").textContent=nd?"Lernen ("+nd+" fällig)":"Freies Üben";
   $("collReset").classList.toggle("hidden",!items.some(c=>st(c)));
+  const miss=items.filter(c=>c.t==="v"&&!c.s).length;$("collFill").classList.toggle("hidden",!miss);$("collFill").textContent=`✨ Sätze für ${miss} Karte${miss===1?"":"n"} ohne Satz ergänzen`;
   const L=$("collList");L.innerHTML=items.length?"":`<div class="empty" style="border:0">Noch keine Karten. Tippe auf „+ Karte“.</div>`;
   items.forEach(c=>{const s=st(c);const b=document.createElement("button");b.className="item";
     b.innerHTML=`<span class="st ${s?(s.done?"d":"l"):""}"></span><span class="t"><b>${esc(c.sv)}${c.old?' <span class="old">veraltet</span>':""}</b><span>${esc(c.de)}${c.t==="w"?" · Wendung":""}</span></span><span class="muted">✎</span>`;
@@ -380,6 +470,7 @@ function renderStats(){
   // Nach Buch
   const groups=[["Affärssvenska",c=>!c.b&&!c.coll],["Rivstart Yrkesliv",c=>c.b==="rv"&&!c.coll],["Eigene Sammlungen",c=>!!c.coll]];
   h+=`<div class="statbox" style="margin-top:10px"><table class="st"><tr><th></th><th>Gelernt</th><th>Lernen</th><th>Neu</th></tr>`;
+  groups.splice(2,0,["Fortnox-Begriffe",c=>c.b==="fx"&&!c.coll]);
   groups.forEach(([nm,f])=>{const g=cs.filter(f);if(!g.length)return;const s=statsOf(g);h+=`<tr><td>${nm}</td><td>${s.d}</td><td>${s.l}</td><td>${s.n}</td></tr>`});
   h+=`</table></div><div class="muted small" style="margin:12px 2px">Statistik seit ${since} · Streak ${curStreak()} · Rekord ${Math.max(streak.best,curStreak())}</div>`;
   $("statBody").innerHTML=h;
@@ -396,7 +487,7 @@ function startPractice(filter,back){
   for(let i=cs.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[cs[i],cs[j]]=[cs[j],cs[i]]}
   practice=true;undoStack=[];setTimeout(updUndo);queue=cs;from=back;show("vLearn");next();
 }
-function cardHead(c){return `<div class="cardtop"><span>${esc(c.coll?(getColl(c.coll)||{}).name||"":(c.b==="rv"?"Rivstart "+c.k:(CHAPTERS[c.k]||"").split(" – ")[0]))}</span><button id="editCur" aria-label="Karte bearbeiten">✎</button></div>`}
+function cardHead(c){return `<div class="cardtop"><span>${esc(c.coll?(getColl(c.coll)||{}).name||"":(c.b==="rv"?"Rivstart "+c.k:c.b==="fx"?"Fortnox · "+(FX_CHAPTERS[c.k]||""):(CHAPTERS[c.k]||"").split(" – ")[0]))}</span><button id="editCur" aria-label="Karte bearbeiten">✎</button></div>`}
 function next(){
   $("left").textContent=queue.length?(practice?"Freies Üben · ":"")+queue.length+" offen":"";
   if(!queue.length){["card","actFront","actBack","hintRow"].forEach(i=>$(i).classList.add("hidden"));$("done").classList.remove("hidden");
@@ -435,8 +526,9 @@ function reveal(){
     if(typed.trim()&&g!=="ok")h+=`<div class="yours">Deine Antwort: ${esc(typed)}</div>`;
   }
   h+=`<div class="msg ${msgs[g][0]}">${msgs[g][1]}</div>`;
-  const src=c.p?((c.b==="rv"?"Rivstart Yrkesliv, S. ":"Affärssvenska Bok 1, S. ")+c.p+(c.note?" · "+c.note:"")):((c.ki?"KI-Satz, ungeprüft":"")+(c.ki&&c.note?" · ":"")+(c.note||""));
+  const src=c.u?"":c.p?((c.b==="rv"?"Rivstart Yrkesliv, S. ":"Affärssvenska Bok 1, S. ")+c.p+(c.note?" · "+c.note:"")):((c.ki?"KI-Satz, ungeprüft":"")+(c.ki&&c.note?" · ":"")+(c.note||""));
   if(src)h+=`<div class="src">${esc(src)}</div>`;
+  if(c.u)h+=`<div class="src"><a href="${esc(c.u)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600">Erklärung bei Fortnox ↗</a>${c.ki?" · KI-Satz, ungeprüft":""}</div>`;
   const say=c.t==="w"?c.sv:(c.s?c.s.replace(/[{}]/g,""):core(c));
   h+=`<div class="tools"><button class="tool" id="say">🔊 ${c.t==="w"||!c.s?"Anhören":"Satz"}</button></div>`;
   $("card").innerHTML=h;$("editCur").onclick=()=>editCard(c,true);$("say").onclick=()=>speak(say);
@@ -516,7 +608,8 @@ function editCard(c,fromLearn){
      <label>Wortart</label><select id="eTyp">${["Subst.","Verb","Partikelverb","Adj.","Adv.","Ausdruck","Verbausdruck"].map(o=>`<option${o===c.typ?" selected":""}>${o}</option>`).join("")}</select>
      <label>Schwedischer Beispielsatz (optional)</label><div class="flagfield"><span class="flag" aria-hidden="true">🇸🇪</span><textarea id="eS">${esc((c.s||"").replace(/[{}]/g,""))}</textarea></div>
      <label>Wort im Satz, falls gebeugt (z. B. „uppsägningen“)</label><input id="eForm" value="${esc(g)}" autocapitalize="off">
-     <label>Deutsche Übersetzung des Satzes</label><div class="flagfield"><span class="flag" aria-hidden="true">🇩🇪</span><textarea id="eD">${esc(c.d||"")}</textarea></div><div class="muted small" style="margin-top:4px">Fettdruck: Text zwischen zwei Sternchenpaare setzen, z. B. **die U-Bahn**</div>
+     <label>Deutsche Übersetzung des Satzes</label><div class="flagfield"><span class="flag" aria-hidden="true">🇩🇪</span><textarea id="eD">${esc(c.d||"")}</textarea></div>
+     <button class="secondary" id="eTr" type="button" style="width:100%;margin-top:10px">🔁 Satz übersetzen</button><div class="muted small" id="trMsg" style="margin-top:6px"></div><div class="muted small" style="margin-top:4px">Fettdruck: Text zwischen zwei Sternchenpaare setzen, z. B. **die U-Bahn**</div>
    </div>
    <div id="wOnly"><label>Weitere mögliche Antworten (eine pro Zeile)</label><textarea id="eAlt">${esc((c.alt||[]).join("\n"))}</textarea></div>
    <label>Notiz (optional)</label><input id="eNote" value="${esc(c.note)}">
@@ -538,6 +631,21 @@ function editCard(c,fromLearn){
     }catch(e){$("genMsg").textContent=e.message||"Das hat nicht geklappt. Bitte noch einmal versuchen."}
     b.disabled=false;b.textContent="✨ Anderen Satz generieren";
   };
+  let lastEdited="";$("eS").addEventListener("input",()=>lastEdited="sv");$("eD").addEventListener("input",()=>lastEdited="de");
+  $("eTr").onclick=async()=>{
+    const sv=$("eS").value.trim(),dt=$("eD").value.trim(),word=$("eSv").value.trim()||$("eDe").value.trim();
+    if(!sv&&!dt){$("trMsg").textContent="Bitte zuerst einen schwedischen oder deutschen Satz eintragen.";return}
+    if(!word){$("trMsg").textContent="Bitte oben zuerst das Lernwort eintragen.";return}
+    const key=LS.get("as-key","");if(!key){$("trMsg").textContent="Bitte zuerst unter ⚙︎ deinen API-Schlüssel eintragen.";return}
+    const dir=sv&&!dt?"sv2de":dt&&!sv?"de2sv":(lastEdited==="de"?"de2sv":"sv2de");
+    const b=$("eTr");b.disabled=true;b.textContent="Übersetze …";$("trMsg").textContent="";
+    try{const o=await translateSentence(key,word,$("eDe").value.trim(),sv,dt.replace(/\*\*/g,""),dir);
+      const m=(o.s||"").match(/\{(.+?)\}/);$("eS").value=(o.s||"").replace(/[{}]/g,"");$("eForm").value=m?m[1]:"";$("eD").value=o.d||"";
+      if(dir==="de2sv")generated=true;lastEdited="";
+      $("trMsg").textContent=dir==="sv2de"?"Ins Deutsche übersetzt – bitte kurz prüfen.":"Ins Schwedische übersetzt – bitte kurz prüfen.";
+    }catch(e){$("trMsg").textContent=e.message||"Das hat nicht geklappt. Bitte noch einmal versuchen."}
+    b.disabled=false;b.textContent="🔁 Satz übersetzen";
+  };
   const sync=()=>{const w=$("eT").value==="w";$("vOnly").classList.toggle("hidden",w);$("wOnly").classList.toggle("hidden",!w);$("genRow").classList.toggle("hidden",w);
     $("lDe").textContent=w?"Situation auf Deutsch":"Deutsch";$("lSv").textContent=w?"Schwedische Wendung":"Schwedisch (mit en/ett)"};
   $("eT").onchange=sync;sync();$("eCancel").onclick=closeSheet;
@@ -556,7 +664,7 @@ function editCard(c,fromLearn){
     if(isNew&&c.pick){let cid=$("eColl").value;
       if(cid==="__new__"){cid="c"+Date.now().toString(36);user.colls.push({id:cid,name:"Meine Wörter"})}
       LS.set("as-lastcoll",cid);
-      if(/^(k|rv)\d+$/.test(cid)&&!user.colls.some(x=>x.id===cid)){c.k=+cid.replace(/^(rv|k)/,"");c.b=cid.startsWith("rv")?"rv":undefined;c.coll=undefined}else{c.coll=cid;c.k=undefined;c.b=undefined}}
+      if(/^(k|rv|fx)\d+$/.test(cid)&&!user.colls.some(x=>x.id===cid)){c.k=+cid.replace(/^(rv|fx|k)/,"");c.b=(cid.match(/^(rv|fx)/)||[])[1];c.coll=undefined}else{c.coll=cid;c.k=undefined;c.b=undefined}}
     if(isNew){n.id="u"+Date.now().toString(36);n.coll=c.coll;n.k=c.k;if(c.b)n.b=c.b;user.cards.push(n)}
     else if(isUser){Object.assign(user.cards.find(x=>x.id===c.id),n)}
     else user.edits[c.id]=n;
@@ -634,11 +742,13 @@ $("donePractice").onclick=()=>startPractice(lastFilter,from);
 $("collBack").onclick=()=>{show("vHome");renderHome()};
 $("collRename").onclick=renameColl;
 $("collLearn").onclick=()=>{const col=getColl(curColl);const f=col.match;allCards().filter(f).some(isDue)?startLearn(f,"vColl"):(lastFilter=f,startPractice(f,"vColl"))};
-$("collAdd").onclick=()=>{const col=getColl(curColl);const rv=col.id.startsWith("rv");editCard({t:"v",de:"",sv:"",info:"",typ:"Subst.",s:"",d:"",coll:col.own?col.id:undefined,k:col.own?undefined:+col.id.replace(/^(rv|k)/,""),b:rv?"rv":undefined})};
+$("collAdd").onclick=()=>{const col=getColl(curColl);const bk=(col.id.match(/^(rv|fx)\d/)||[])[1];editCard({t:"v",de:"",sv:"",info:"",typ:"Subst.",s:"",d:"",coll:col.own?col.id:undefined,k:col.own?undefined:+col.id.replace(/^(rv|fx|k)/,""),b:bk})};
 $("collReset").onclick=()=>{if(!confirm("Fortschritt nur für diese Sammlung zurücksetzen?"))return;allCards().filter(getColl(curColl).match).forEach(c=>delete prog[c.id]);saveProg();renderColl()};
 $("learnBack").onclick=()=>{try{speechSynthesis.cancel()}catch(e){}show(from);from==="vColl"?renderColl():renderHome()};
 $("check").onclick=reveal;$("hint").onclick=hint;
 $("undoBtn").onclick=undo;
+$("suggBtn").onclick=suggestSheet;
+$("collFill").onclick=()=>{const col=getColl(curColl);const n=allCards().filter(col.match).filter(c=>c.t==="v"&&!c.s).length;if(confirm(`Für ${n} Karten Beispielsätze erzeugen? Das nutzt dein API-Guthaben (grob ${Math.max(1,Math.round(n*0.05))} Cent).`))fillSentences(curColl)};
 $("statBtn").onclick=()=>{renderStats();show("vStats")};
 $("statBack").onclick=()=>{show("vHome");renderHome()};
 $("rYes").onclick=()=>rate("yes");$("rNo").onclick=()=>rate("no");$("rNever").onclick=()=>rate("never");
