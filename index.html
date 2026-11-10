@@ -170,6 +170,7 @@ textarea.solo{min-height:84px;text-align:left;resize:vertical;font-weight:600}
 <script>
 const EMBEDDED = /*__DATA__*/null;
 const CHAPTERS = {1:"Kap. 1 – Personalen. Kontoret.",2:"Kap. 2 – Att vara anställd. Besök på banken.",3:"Kap. 3 – Att samtala i telefon",4:"Kap. 4 – Samtal på arbetet",5:"Kap. 5 – Besök på en mässa",6:"Kap. 6 – Besök hos en tillverkare",7:"Kap. 7 – Presentation av ett företags verksamhet",8:"Kap. 8 – Eira sammanfattar sina intryck"};
+const RV_CHAPTERS = {1:"Rivstart 1 – Arbetsmarknad och arbetstagare",2:"Rivstart 2 – Arbetsplatser",3:"Rivstart 3 – Arbetsplatskultur",4:"Rivstart 4 – Kundkontakt",5:"Rivstart 5 – Arbetsmiljö",6:"Rivstart 6 – Socialt på jobbet",7:"Rivstart 7 – Möten",8:"Rivstart 8 – Projekt och grupper"};
 const STEPS=[1,2,4,7,10,14], DAY=86400000;
 
 // ---------- Speicher ----------
@@ -187,9 +188,11 @@ function allCards(){
 }
 function collections(){
   const cs=allCards(), out=[];
-  const ks=[...new Set(cs.filter(c=>c.k!=null).map(c=>c.k))].sort((a,b)=>a-b);
-  ks.forEach(k=>out.push({id:"k"+k,name:user.names["k"+k]||CHAPTERS[k]||("Kap. "+k),match:c=>c.k===k}));
-  user.colls.forEach(col=>out.push({id:col.id,name:col.name,own:true,match:c=>c.coll===col.id}));
+  const ks=[...new Set(cs.filter(c=>c.k!=null&&!c.b&&!c.coll).map(c=>c.k))].sort((a,b)=>a-b);
+  ks.forEach(k=>out.push({id:"k"+k,book:"Affärssvenska",name:user.names["k"+k]||CHAPTERS[k]||("Kap. "+k),match:c=>c.k===k&&!c.b&&!c.coll}));
+  const rs=[...new Set(cs.filter(c=>c.b==="rv"&&!c.coll).map(c=>c.k))].sort((a,b)=>a-b);
+  rs.forEach(k=>out.push({id:"rv"+k,book:"Rivstart Yrkesliv",name:user.names["rv"+k]||RV_CHAPTERS[k]||("Rivstart "+k),match:c=>c.b==="rv"&&c.k===k&&!c.coll}));
+  user.colls.forEach(col=>out.push({id:col.id,book:"Eigene Sammlungen",name:col.name,own:true,match:c=>c.coll===col.id}));
   return out;
 }
 // ---------- Zeit & Streak ----------
@@ -292,8 +295,9 @@ function renderHome(){
     w.insertAdjacentHTML("beforeend",`<div class="day"><div class="dot${on?" on":""}${isT?" today":""}"></div>${n}</div>`);d.setDate(d.getDate()+1)});
   $("noData").classList.toggle("hidden",base.length>0);
   const cs=allCards(),due=cs.filter(isDue).length; $("learnAll").textContent=due?"Alle fälligen Karten lernen ("+due+")":"Nichts fällig – Freies Üben";
-  const g=$("grid");g.innerHTML="";
+  const g=$("grid");g.innerHTML="";let lastBook="";
   collections().forEach(col=>{const items=cs.filter(col.match),s=statsOf(items);
+    if(col.book!==lastBook){lastBook=col.book;g.insertAdjacentHTML("beforeend",`<div class="muted small" style="grid-column:1/-1;font-weight:700;margin-top:6px;text-transform:uppercase;letter-spacing:.04em">${esc(col.book)}</div>`)}
     const b=document.createElement("button");b.className="tile";
     b.innerHTML=`<h3>${esc(col.name)}</h3><div class="stats"><span>Nicht geübt</span><span>${s.n}</span><span>Lernen</span><span>${s.l}</span><span>Gelernt</span><span>${s.d}</span></div><div class="bar"><i style="width:${items.length?s.d/items.length*100:0}%"></i></div>`;
     b.onclick=()=>openColl(col.id);g.appendChild(b)});
@@ -324,7 +328,7 @@ function startPractice(filter,back){
   for(let i=cs.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[cs[i],cs[j]]=[cs[j],cs[i]]}
   practice=true;queue=cs;from=back;show("vLearn");next();
 }
-function cardHead(c){return `<div class="cardtop"><span>${esc(c.coll?(getColl(c.coll)||{}).name||"":(CHAPTERS[c.k]||"").split(" – ")[0])}</span><button id="editCur" aria-label="Karte bearbeiten">✎</button></div>`}
+function cardHead(c){return `<div class="cardtop"><span>${esc(c.coll?(getColl(c.coll)||{}).name||"":(c.b==="rv"?"Rivstart "+c.k:(CHAPTERS[c.k]||"").split(" – ")[0]))}</span><button id="editCur" aria-label="Karte bearbeiten">✎</button></div>`}
 function next(){
   $("left").textContent=queue.length?(practice?"Freies Üben · ":"")+queue.length+" offen":"";
   if(!queue.length){["card","actFront","actBack","hintRow"].forEach(i=>$(i).classList.add("hidden"));$("done").classList.remove("hidden");
@@ -363,7 +367,7 @@ function reveal(){
     if(typed.trim()&&g!=="ok")h+=`<div class="yours">Deine Antwort: ${esc(typed)}</div>`;
   }
   h+=`<div class="msg ${msgs[g][0]}">${msgs[g][1]}</div>`;
-  const src=c.p?("Affärssvenska Bok 1, S. "+c.p+(c.note?" · "+c.note:"")):((c.ki?"KI-Satz, ungeprüft":"")+(c.ki&&c.note?" · ":"")+(c.note||""));
+  const src=c.p?((c.b==="rv"?"Rivstart Yrkesliv, S. ":"Affärssvenska Bok 1, S. ")+c.p+(c.note?" · "+c.note:"")):((c.ki?"KI-Satz, ungeprüft":"")+(c.ki&&c.note?" · ":"")+(c.note||""));
   if(src)h+=`<div class="src">${esc(src)}</div>`;
   const say=c.t==="w"?c.sv:(c.s?c.s.replace(/[{}]/g,""):core(c));
   h+=`<div class="tools"><button class="tool" id="say">🔊 ${c.t==="w"||!c.s?"Anhören":"Satz"}</button></div>`;
@@ -457,8 +461,8 @@ function editCard(c,fromLearn){
     if(isNew&&c.pick){let cid=$("eColl").value;
       if(cid==="__new__"){cid="c"+Date.now().toString(36);user.colls.push({id:cid,name:"Meine Wörter"})}
       LS.set("as-lastcoll",cid);
-      if(cid.startsWith("k")&&!user.colls.some(x=>x.id===cid)){c.k=+cid.slice(1);c.coll=undefined}else{c.coll=cid;c.k=undefined}}
-    if(isNew){n.id="u"+Date.now().toString(36);n.coll=c.coll;n.k=c.k;user.cards.push(n)}
+      if(/^(k|rv)\d+$/.test(cid)&&!user.colls.some(x=>x.id===cid)){c.k=+cid.replace(/^(rv|k)/,"");c.b=cid.startsWith("rv")?"rv":undefined;c.coll=undefined}else{c.coll=cid;c.k=undefined;c.b=undefined}}
+    if(isNew){n.id="u"+Date.now().toString(36);n.coll=c.coll;n.k=c.k;if(c.b)n.b=c.b;user.cards.push(n)}
     else if(isUser){Object.assign(user.cards.find(x=>x.id===c.id),n)}
     else user.edits[c.id]=n;
     saveUser();closeSheet();if(c.pick){renderHome();toast("Karte gespeichert")}else afterEdit(fromLearn,c.id);
@@ -535,7 +539,7 @@ $("donePractice").onclick=()=>startPractice(lastFilter,from);
 $("collBack").onclick=()=>{show("vHome");renderHome()};
 $("collRename").onclick=renameColl;
 $("collLearn").onclick=()=>{const col=getColl(curColl);const f=col.match;allCards().filter(f).some(isDue)?startLearn(f,"vColl"):(lastFilter=f,startPractice(f,"vColl"))};
-$("collAdd").onclick=()=>{const col=getColl(curColl);editCard({t:"v",de:"",sv:"",info:"",typ:"Subst.",s:"",d:"",coll:col.own?col.id:undefined,k:col.own?undefined:+col.id.slice(1)})};
+$("collAdd").onclick=()=>{const col=getColl(curColl);const rv=col.id.startsWith("rv");editCard({t:"v",de:"",sv:"",info:"",typ:"Subst.",s:"",d:"",coll:col.own?col.id:undefined,k:col.own?undefined:+col.id.replace(/^(rv|k)/,""),b:rv?"rv":undefined})};
 $("collReset").onclick=()=>{if(!confirm("Fortschritt nur für diese Sammlung zurücksetzen?"))return;allCards().filter(getColl(curColl).match).forEach(c=>delete prog[c.id]);saveProg();renderColl()};
 $("learnBack").onclick=()=>{try{speechSynthesis.cancel()}catch(e){}show(from);from==="vColl"?renderColl():renderHome()};
 $("check").onclick=reveal;$("hint").onclick=hint;
