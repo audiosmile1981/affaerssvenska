@@ -128,6 +128,11 @@ textarea.solo{min-height:84px;text-align:left;resize:vertical;font-weight:600}
 .stack{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--blue-soft);margin:8px 0 4px}
 .stack i{display:block;height:100%}
 table.st{width:100%;border-collapse:collapse;font-size:.9rem}table.st td,table.st th{padding:8px 4px;border-bottom:1px solid var(--line);text-align:right}table.st td:first-child,table.st th:first-child{text-align:left}
+.plant{display:inline-flex;align-items:center;gap:4px;color:var(--ok);font-size:.72rem;font-weight:700}
+.plantlbl{white-space:nowrap}
+.plant.grow svg{animation:grow .42s ease-out}.plant.wilt svg{animation:wilt .42s ease-out}
+@keyframes grow{0%{transform:scale(.6)}60%{transform:scale(1.35)}100%{transform:scale(1)}}
+@keyframes wilt{0%{transform:scale(1.2) rotate(-8deg)}100%{transform:scale(1)}}
 @media (prefers-reduced-motion:reduce){.card{transition:none}}
 </style>
 </head>
@@ -435,7 +440,7 @@ function renderColl(){
   const miss=items.filter(c=>c.t==="v"&&!c.s).length;$("collFill").classList.toggle("hidden",!miss);$("collFill").textContent=`✨ Sätze für ${miss} Karte${miss===1?"":"n"} ohne Satz ergänzen`;
   const L=$("collList");L.innerHTML=items.length?"":`<div class="empty" style="border:0">Noch keine Karten. Tippe auf „+ Karte“.</div>`;
   items.forEach(c=>{const s=st(c);const b=document.createElement("button");b.className="item";
-    b.innerHTML=`<span class="st ${s?(s.done?"d":"l"):""}"></span><span class="t"><b>${esc(c.sv)}${c.old?' <span class="old">veraltet</span>':""}</b><span>${esc(c.de)}${c.t==="w"?" · Wendung":""}</span></span><span class="muted">✎</span>`;
+    b.innerHTML=`<span style="flex:none;width:24px">${stageOf(c)<0?'<span class="st"></span>':plantSVG(stageOf(c),24)}</span><span class="t"><b>${esc(c.sv)}${c.old?' <span class="old">veraltet</span>':""}</b><span>${esc(c.de)}${c.t==="w"?" · Wendung":""}</span></span><span class="muted">✎</span>`;
     b.onclick=()=>editCard(c);L.appendChild(b)});
 }
 
@@ -457,9 +462,11 @@ function renderStats(){
    <div class="stack"><i style="width:${pct(d)}%;background:var(--ok)"></i><i style="width:${pct(l)}%;background:var(--warn)"></i><i style="width:${pct(nv)}%;background:var(--muted)"></i></div>
    <span>Grün: gelernt · Gelb: im Lernstadium · Grau: nie wieder · Rest: nicht geübt</span></div>`;
   // Lernstufen
-  h+=`<div class="statbox" style="margin-top:10px"><span>Karten im Lernstadium nach nächster Wiederholung</span><table class="st" style="margin-top:6px"><tr><th>Stufe</th><th>Wiederholung nach</th><th>Karten</th></tr>`;
-  h+=`<tr><td>Neu begonnen / zurückgesetzt</td><td>1 Tag</td><td>${lv[0]||0}</td></tr>`;
-  STEPS.forEach((dd,i)=>{h+=`<tr><td>${i+1}× gewusst</td><td>${dd} ${dd===1?"Tag":"Tage"}</td><td>${lv[i+1]||0}</td></tr>`});
+  h+=`<div class="statbox" style="margin-top:10px"><span>Dein Garten: Karten je Wachstumsstufe</span><table class="st" style="margin-top:6px"><tr><th>Stufe</th><th>Nächste Wiederholung</th><th>Karten</th></tr>`;
+  const pl=n=>`<span style="display:inline-flex;align-items:center;gap:6px">${plantSVG(n,22)}${PLANT_NAMES[n]}</span>`;
+  h+=`<tr><td>${pl(0)}</td><td>Neu / zurückgesetzt</td><td>${(lv[0]||0)+n}</td></tr>`;
+  STEPS.forEach((dd,i)=>{h+=`<tr><td>${pl(i+1)}</td><td>${dd} ${dd===1?"Tag":"Tage"}</td><td>${lv[i+1]||0}</td></tr>`});
+  h+=`<tr><td>${pl(7)}</td><td>gelernt</td><td>${d}</td></tr>`;
   h+=`</table></div>`;
   // Letzte 14 Tage
   const arr=[];for(let i=13;i>=0;i--){const x=new Date();x.setHours(12,0,0,0);x.setDate(x.getDate()-i);const k=dkey(x);arr.push({k,d:x,n:(streak.days[k]||{}).n||0,met:(streak.days[k]||{}).met})}
@@ -475,6 +482,26 @@ function renderStats(){
   h+=`</table></div><div class="muted small" style="margin:12px 2px">Statistik seit ${since} · Streak ${curStreak()} · Rekord ${Math.max(streak.best,curStreak())}</div>`;
   $("statBody").innerHTML=h;
 }
+// ---------- Pflanze als Lernfortschritt ----------
+const PLANT_NAMES=["Samen","Keimling","Sprössling","Jungpflanze","Knospe","Blüte","Bäumchen","Baum – gelernt"];
+function stageOf(c){const s=st(c);if(!s)return 0;if(s.never)return -1;if(s.done)return 7;return Math.min(6,s.lvl||0)}
+function plantSVG(n,size){
+  const G="var(--ok)",B="#8B5A2B",Y="#F2C230",soil=`<path d="M6 34 Q20 31 34 34" stroke="var(--muted)" stroke-width="2.2" fill="none" stroke-linecap="round"/>`;
+  const leaf=(x,y,r,dir)=>`<ellipse cx="${x+dir*4}" cy="${y}" rx="4.2" ry="2.2" transform="rotate(${dir*-30} ${x+dir*4} ${y})" fill="${G}"/>`;
+  const stem=h=>`<path d="M20 33 L20 ${33-h}" stroke="${G}" stroke-width="2" stroke-linecap="round"/>`;
+  let g="";
+  if(n<=0)g=`<ellipse cx="20" cy="30.5" rx="3.4" ry="2.4" fill="${B}"/>`;
+  else if(n===1)g=stem(5)+leaf(20,28,1,-1)+leaf(20,28,1,1);
+  else if(n===2)g=stem(10)+leaf(20,26,1,-1)+leaf(20,23,1,1);
+  else if(n===3)g=stem(15)+leaf(20,28,1,-1)+leaf(20,25,1,1)+leaf(20,22,1,-1)+leaf(20,19,1,1);
+  else if(n===4)g=stem(18)+leaf(20,29,1,-1)+leaf(20,26,1,1)+leaf(20,22,1,-1)+leaf(20,19,1,1)+`<ellipse cx="20" cy="14" rx="2.6" ry="3.6" fill="${G}"/><path d="M18.6 12.5 Q20 9.5 21.4 12.5" fill="${Y}"/>`;
+  else if(n===5)g=stem(18)+leaf(20,29,1,-1)+leaf(20,25,1,1)+leaf(20,21,1,-1)+[0,72,144,216,288].map(a=>`<ellipse cx="20" cy="10.5" rx="2.4" ry="4" transform="rotate(${a} 20 14)" fill="${Y}"/>`).join("")+`<circle cx="20" cy="14" r="2.3" fill="${B}"/>`;
+  else if(n===6)g=`<path d="M20 33 L20 20" stroke="${B}" stroke-width="3" stroke-linecap="round"/><circle cx="20" cy="16" r="7" fill="${G}"/>`;
+  else g=`<path d="M20 33 L20 18" stroke="${B}" stroke-width="3.6" stroke-linecap="round"/><path d="M20 24 L15 20 M20 22 L25 18" stroke="${B}" stroke-width="2" stroke-linecap="round"/><circle cx="14" cy="15" r="6.5" fill="${G}"/><circle cx="26" cy="15" r="6.5" fill="${G}"/><circle cx="20" cy="9.5" r="7.5" fill="${G}"/><circle cx="17" cy="13" r="1.4" fill="${Y}"/><circle cx="24" cy="10" r="1.4" fill="${Y}"/>`;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 40 40" aria-hidden="true" style="display:block">${soil}${g}</svg>`;
+}
+function plantBadge(c){const n=stageOf(c);if(n<0)return `<span class="muted small">Nie wieder</span>`;
+  return `<span class="plant" id="plant" title="${PLANT_NAMES[n]}">${plantSVG(n,34)}<span class="plantlbl">${PLANT_NAMES[n]}${n>0&&n<7?` · ${n}/6`:""}</span></span>`}
 // ---------- Lernen ----------
 let queue=[],cur=null,revealed=false,hintLvl=0,from="vHome",practice=false;
 function startLearn(filter,back){lastFilter=filter;undoStack=[];setTimeout(updUndo);
@@ -487,7 +514,7 @@ function startPractice(filter,back){
   for(let i=cs.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[cs[i],cs[j]]=[cs[j],cs[i]]}
   practice=true;undoStack=[];setTimeout(updUndo);queue=cs;from=back;show("vLearn");next();
 }
-function cardHead(c){return `<div class="cardtop"><span>${esc(c.coll?(getColl(c.coll)||{}).name||"":(c.b==="rv"?"Rivstart "+c.k:c.b==="fx"?"Fortnox · "+(FX_CHAPTERS[c.k]||""):(CHAPTERS[c.k]||"").split(" – ")[0]))}</span><button id="editCur" aria-label="Karte bearbeiten">✎</button></div>`}
+function cardHead(c){return `<div class="cardtop"><span>${esc(c.coll?(getColl(c.coll)||{}).name||"":(c.b==="rv"?"Rivstart "+c.k:c.b==="fx"?"Fortnox · "+(FX_CHAPTERS[c.k]||""):(CHAPTERS[c.k]||"").split(" – ")[0]))}</span><span class="row" style="gap:6px">${practice?"":plantBadge(c)}<button id="editCur" aria-label="Karte bearbeiten">✎</button></span></div>`}
 function next(){
   $("left").textContent=queue.length?(practice?"Freies Üben · ":"")+queue.length+" offen":"";
   if(!queue.length){["card","actFront","actBack","hintRow"].forEach(i=>$(i).classList.add("hidden"));$("done").classList.remove("hidden");
@@ -497,12 +524,12 @@ function next(){
   const c=cur;let h=cardHead(c);
   if(c.t==="w"){
     h+=`<div><span class="de-word w">${esc(c.de)}</span></div><div class="typ" style="margin:6px 0 0">Wendung</div>
-      <textarea class="gap solo" id="gap" autocomplete="off" autocapitalize="sentences" spellcheck="false" placeholder="Auf Schwedisch …"></textarea><div class="msg" id="msg"></div>`;
+      <textarea class="gap solo" id="gap" autocomplete="off" autocorrect="off" autocapitalize="sentences" spellcheck="false" placeholder="Auf Schwedisch …"></textarea><div class="msg" id="msg"></div>`;
   }else{
     h+=`<div><span class="de-word">${esc(c.de)}</span><span class="typ">(${esc(c.typ)})</span></div><div class="lemma" id="lemma"></div>`;
     if(c.s){const [a,b]=c.s.split(/\{.+?\}/);const len=answerOf(c)[0].length;
-      h+=`<div class="sv">${esc(a)}<input class="gap" id="gap" style="width:${Math.max(6,len+2)}ch" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Antwort">${esc(b)}</div><div class="dex">${bold(c.d)}</div>`;
-    }else h+=`<input class="gap solo" id="gap" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Auf Schwedisch …">`;
+      h+=`<div class="sv">${esc(a)}<input class="gap" id="gap" style="width:${Math.max(6,len+2)}ch" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Antwort">${esc(b)}</div><div class="dex">${bold(c.d)}</div>`;
+    }else h+=`<input class="gap solo" id="gap" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Auf Schwedisch …">`;
     h+=`<div class="msg" id="msg"></div>`;
   }
   $("card").innerHTML=h;$("card").style.transform="";
@@ -548,7 +575,10 @@ function rate(kind){
     else{s.done=true;s.never=true}
     prog[c.id]=s;saveProg();}
   sfx(kind);countToday();
-  flyOut(kind,()=>{queue.shift();busy=false;next();updUndo()});
+  const p=$("plant");
+  if(p&&!practice&&kind!=="never"){p.outerHTML=plantBadge(c);const np=$("plant");np.classList.add(kind==="yes"?"grow":"wilt");
+    setTimeout(()=>flyOut(kind,()=>{queue.shift();busy=false;next();updUndo()}),420)}
+  else flyOut(kind,()=>{queue.shift();busy=false;next();updUndo()});
 }
 function flyOut(kind,cb){
   const el=$("card"),dir=kind==="no"?-1:1;
@@ -703,7 +733,7 @@ function settings(){
    ${EMBEDDED?"":'<button class="secondary" id="sLoad" style="width:100%;margin-top:8px">Karten laden (Datei)</button>'}
    <label>Kartenwerkstatt</label><div class="muted small" style="line-height:1.5">Eigene Wörter mit KI-Sätzen erstellst du in der <a href="https://claude.ai/artifact/3pAhjix3ocXyFfxuupeEUY" target="_blank" rel="noopener" style="color:var(--blue)">Kartenwerkstatt auf claude.ai</a>.</div>
    <button class="secondary" id="sWerk" style="width:100%;margin-top:8px">Werkstatt-Karten importieren</button>
-   <label>Anthropic-API-Schlüssel (für „Satz generieren“)</label><input id="sKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sk-ant-…" value="${esc(LS.get("as-key",""))}">
+   <label>Anthropic-API-Schlüssel (für „Satz generieren“)</label><input id="sKey" type="password" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="sk-ant-…" value="${esc(LS.get("as-key",""))}">
    <div class="muted small" style="margin-top:4px;line-height:1.5">Wird nur auf diesem Gerät gespeichert.</div>
    <label>Sicherung</label>
    <button class="secondary" id="sExport" style="width:100%">Eigene Karten & Fortschritt sichern</button>
