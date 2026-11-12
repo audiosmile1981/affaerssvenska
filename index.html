@@ -133,6 +133,8 @@ table.st{width:100%;border-collapse:collapse;font-size:.9rem}table.st td,table.s
 .plant.grow svg{animation:grow .42s ease-out}.plant.wilt svg{animation:wilt .42s ease-out}
 @keyframes grow{0%{transform:scale(.6)}60%{transform:scale(1.35)}100%{transform:scale(1)}}
 @keyframes wilt{0%{transform:scale(1.2) rotate(-8deg)}100%{transform:scale(1)}}
+.tw{cursor:pointer;text-decoration:underline dotted;text-decoration-color:var(--muted);text-underline-offset:4px;border-radius:4px}
+.tw:active,.tw-on{background:var(--blue-soft)}
 @media (prefers-reduced-motion:reduce){.card{transition:none}}
 </style>
 </head>
@@ -502,6 +504,25 @@ function plantSVG(n,size){
 }
 function plantBadge(c){const n=stageOf(c);if(n<0)return `<span class="muted small">Nie wieder</span>`;
   return `<span class="plant" id="plant" title="${PLANT_NAMES[n]}">${plantSVG(n,34)}<span class="plantlbl">${PLANT_NAMES[n]}${n>0&&n<7?` · ${n}/6`:""}</span></span>`}
+// ---------- Wort antippen → eigene Karte ----------
+function tw(s){return esc(s).replace(/(\p{L}[\p{L}\-]*)/gu,'<span class="tw" data-w="$1">$1</span>')}
+function wordCard(word,sentence){
+  try{speechSynthesis.cancel()}catch(e){}
+  const last=LS.get("as-lastcoll","");const ok=collections().some(x=>x.id===last);const mw=user.colls.find(x=>x.name==="Meine Wörter");
+  editCard({t:"v",de:"",sv:word,info:"",typ:"Subst.",s:sentence,d:"",autoCtx:{word,sentence},pick:ok?last:(mw?mw.id:"__new__")});
+}
+async function genFromContext(key,word,sentence){
+  const prompt=`Du erstellst eine Lernkarte für einen deutschsprachigen Erwachsenen, der Business-Schwedisch auf Niveau B1–B2 lernt.
+Er hat in diesem schwedischen Satz das Wort "${word}" angetippt und möchte es lernen:
+"${sentence}"
+Bestimme die Grundform des Wortes (bei Substantiven mit en/ett davor; gehört das Wort erkennbar zu einem Partikelverb oder einer festen Wendung im Satz, nimm diese), die Wortart, Pluralendung bzw. Konjugationsgruppe (1–4 wie in schwedischen Lehrbüchern) und eine kurze deutsche Bedeutung in genau diesem Zusammenhang.
+Übernimm den Satz unverändert als Beispielsatz und markiere darin das Lernwort in der Form, in der es dort steht, genau einmal mit geschweiften Klammern.
+Übersetze den Satz in natürliches Deutsch und setze die Entsprechung des Lernworts samt Artikel in **doppelte Sternchen**.
+Antworte sofort, ohne lange nachzudenken. Antworte NUR mit JSON, ohne Erklärung und ohne Codeblock:
+{"sv":"ett företag","de":"Unternehmen","typ":"Subst.","info":"-","s":"Eira ringer till det {företag} där hon ska arbeta.","d":"Eira ruft bei **dem Unternehmen** an, in dem sie arbeiten wird."}
+"typ" ist eines von: Subst., Verb, Partikelverb, Adj., Adv., Ausdruck, Verbausdruck.`;
+  return askJSON(key,prompt);
+}
 // ---------- Lernen ----------
 let queue=[],cur=null,revealed=false,hintLvl=0,from="vHome",practice=false;
 function startLearn(filter,back){lastFilter=filter;undoStack=[];setTimeout(updUndo);
@@ -542,20 +563,21 @@ function reveal(){
   const msgs={ok:["ok","Richtig!"],warn:["warn","Fast – achte auf å, ä und ö."],close:["warn","Fast – kleine Abweichung. Entscheide selbst."],bad:["bad","Nicht ganz – so heißt es:"],none:["","Lösung:"]};
   let h=cardHead(c);
   if(c.t==="w"){
-    h+=`<div><span class="de-word w">${esc(c.de)}</span></div><div class="answer">${esc(c.sv)}</div>`;
+    h+=`<div><span class="de-word w">${esc(c.de)}</span></div><div class="answer">${tw(c.sv)}</div>`;
     if(c.alt&&c.alt.length)h+=`<div class="alts">Auch möglich: ${c.alt.map(esc).join(" · ")}</div>`;
     if(typed.trim()&&g!=="ok")h+=`<div class="yours">Deine Antwort: ${esc(typed)}</div>`;
   }else{
     let lem=esc(c.sv);if(c.betont)lem=lem.replace(c.betont,"<u>"+esc(c.betont)+"</u>");
     const info=c.info?(/^[1-4]$/.test(c.info)?"Konj. "+c.info:c.info):"";
     h+=`<div><span class="de-word">${esc(c.de)}</span><span class="typ">(${esc(c.typ)})</span></div><div class="lemma">${lem}<small>${esc(info)}</small>${c.old?'<span class="old">veraltet</span>':""}</div>`;
-    if(c.s){const [a,b]=c.s.split(/\{.+?\}/);h+=`<div class="sv">${esc(a)}<span class="fill ${g==="ok"?"ok":"bad"}">${esc(ans[0])}</span>${esc(b)}</div><div class="dex">${bold(c.d)}</div>`}
+    if(c.s){const [a,b]=c.s.split(/\{.+?\}/);h+=`<div class="sv">${tw(a)}<span class="fill ${g==="ok"?"ok":"bad"}">${esc(ans[0])}</span>${tw(b)}</div><div class="dex">${bold(c.d)}</div>`}
     if(typed.trim()&&g!=="ok")h+=`<div class="yours">Deine Antwort: ${esc(typed)}</div>`;
   }
   h+=`<div class="msg ${msgs[g][0]}">${msgs[g][1]}</div>`;
   const src=c.u?"":c.p?((c.b==="rv"?"Rivstart Yrkesliv, S. ":"Affärssvenska Bok 1, S. ")+c.p+(c.note?" · "+c.note:"")):((c.ki?"KI-Satz, ungeprüft":"")+(c.ki&&c.note?" · ":"")+(c.note||""));
   if(src)h+=`<div class="src">${esc(src)}</div>`;
   if(c.u)h+=`<div class="src"><a href="${esc(c.u)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600">Erklärung bei Fortnox ↗</a>${c.ki?" · KI-Satz, ungeprüft":""}</div>`;
+  const hc=LS.get("as-twhint",0);if(hc<6&&(c.s||c.t==="w")){h+=`<div class="muted small" style="margin-top:8px">Tipp: Wort im schwedischen Satz antippen → eigene Karte</div>`;LS.set("as-twhint",hc+1)}
   const say=c.t==="w"?c.sv:(c.s?c.s.replace(/[{}]/g,""):core(c));
   h+=`<div class="tools"><button class="tool" id="say">🔊 ${c.t==="w"||!c.s?"Anhören":"Satz"}</button></div>`;
   $("card").innerHTML=h;$("editCur").onclick=()=>editCard(c,true);$("say").onclick=()=>speak(say);
@@ -698,8 +720,20 @@ function editCard(c,fromLearn){
     if(isNew){n.id="u"+Date.now().toString(36);n.coll=c.coll;n.k=c.k;if(c.b)n.b=c.b;user.cards.push(n)}
     else if(isUser){Object.assign(user.cards.find(x=>x.id===c.id),n)}
     else user.edits[c.id]=n;
-    saveUser();closeSheet();if(c.pick){renderHome();toast("Karte gespeichert")}else afterEdit(fromLearn,c.id);
+    saveUser();closeSheet();if(c.pick){renderHome();toast(c.autoCtx?"Karte gespeichert – du lernst sie später":"Karte gespeichert")}else afterEdit(fromLearn,c.id);
   };
+  if(c.autoCtx){
+    $("eForm").value=c.autoCtx.word;
+    const key=LS.get("as-key","");
+    if(!key){$("genMsg").textContent="Ohne API-Schlüssel bitte Grundform, Deutsch und Übersetzung selbst ergänzen (⚙︎ → Schlüssel eintragen).";}
+    else{const b=$("eGen");b.disabled=true;b.textContent="Erkenne Wort …";
+      genFromContext(key,c.autoCtx.word,c.autoCtx.sentence).then(o=>{
+        $("eSv").value=o.sv||c.autoCtx.word;$("eDe").value=o.de||"";$("eInfo").value=o.info||"";if(o.typ)$("eTyp").value=o.typ;
+        const m=(o.s||"").match(/\{(.+?)\}/);$("eS").value=(o.s||c.autoCtx.sentence).replace(/[{}]/g,"");$("eForm").value=m?m[1]:c.autoCtx.word;$("eD").value=o.d||"";
+        $("genMsg").textContent="Fertig – mit dem Satz, in dem du das Wort gefunden hast. Bitte kurz prüfen.";
+      }).catch(e=>{$("genMsg").textContent=e.message||"Das hat nicht geklappt. Bitte die Felder selbst ergänzen."})
+      .finally(()=>{b.disabled=false;b.textContent="✨ Anderen Satz generieren"})}
+  }
   if(!isNew)$("eDel").onclick=()=>{if(!confirm("Diese Karte wirklich löschen?"))return;
     if(isUser)user.cards=user.cards.filter(x=>x.id!==c.id);else user.deleted.push(c.id);
     delete prog[c.id];saveProg();saveUser();closeSheet();
@@ -777,6 +811,9 @@ $("collReset").onclick=()=>{if(!confirm("Fortschritt nur für diese Sammlung zur
 $("learnBack").onclick=()=>{try{speechSynthesis.cancel()}catch(e){}show(from);from==="vColl"?renderColl():renderHome()};
 $("check").onclick=reveal;$("hint").onclick=hint;
 $("undoBtn").onclick=undo;
+$("card").addEventListener("click",e=>{const w=e.target.closest&&e.target.closest(".tw");if(!w||!revealed||busy)return;
+  const box=w.closest(".sv,.answer");const sentence=(box?box.textContent:"").replace(/\s+/g," ").trim();
+  w.classList.add("tw-on");setTimeout(()=>w.classList.remove("tw-on"),400);wordCard(w.dataset.w,sentence)});
 $("suggBtn").onclick=suggestSheet;
 $("collFill").onclick=()=>{const col=getColl(curColl);const n=allCards().filter(col.match).filter(c=>c.t==="v"&&!c.s).length;if(confirm(`Für ${n} Karten Beispielsätze erzeugen? Das nutzt dein API-Guthaben (grob ${Math.max(1,Math.round(n*0.05))} Cent).`))fillSentences(curColl)};
 $("statBtn").onclick=()=>{renderStats();show("vStats")};
