@@ -135,6 +135,14 @@ table.st{width:100%;border-collapse:collapse;font-size:.9rem}table.st td,table.s
 @keyframes wilt{0%{transform:scale(1.2) rotate(-8deg)}100%{transform:scale(1)}}
 .tw{cursor:pointer;text-decoration:underline dotted;text-decoration-color:var(--muted);text-underline-offset:4px;border-radius:4px}
 .tw:active,.tw-on{background:var(--blue-soft)}
+.stepttl{font-weight:800;font-size:.95rem;margin:18px 0 8px}
+.seg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:4px}
+.seg button{border:0;background:none;border-radius:10px;padding:8px 4px;font-size:1.2rem;display:flex;flex-direction:column;align-items:center;gap:2px}
+.seg button span{font-size:.78rem;font-weight:700}
+.seg button.on{background:var(--surface);box-shadow:0 1px 4px rgba(0,0,0,.12);color:var(--blue)}
+.srcpane{margin-top:10px}
+.clearwrap{position:relative;margin-top:8px}.clearwrap input,.clearwrap textarea{padding-right:42px}
+.clr{position:absolute;right:6px;top:6px;width:30px;height:30px;border-radius:50%;border:0;background:var(--line);color:var(--ink);font-size:.85rem;line-height:1}
 @media (prefers-reduced-motion:reduce){.card{transition:none}}
 </style>
 </head>
@@ -168,7 +176,7 @@ table.st{width:100%;border-collapse:collapse;font-size:.9rem}table.st td,table.s
 </section>
 
 <section id="vColl" class="hidden">
-  <div class="row"><button class="icon-btn" id="collBack" aria-label="Zurück">‹</button><h2 id="collName" style="flex:1"></h2><button class="icon-btn" id="collRename" aria-label="Sammlung umbenennen">✎</button></div>
+  <div class="row"><button class="icon-btn" id="collBack" aria-label="Zurück">‹</button><h2 id="collName" style="flex:1"></h2><button class="icon-btn" id="collRename" aria-label="Sammlung bearbeiten oder zusammenführen">✎</button></div>
   <div class="row" style="margin-top:14px"><button class="primary" id="collLearn" style="flex:2">Lernen</button><button class="secondary" id="collAdd" style="flex:1;padding:15px 10px">+ Karte</button></div>
   <button class="secondary hidden" id="collFill" style="width:100%;margin-top:10px;padding:12px">✨ Sätze ergänzen</button>
   <div class="list" id="collList"></div>
@@ -441,46 +449,77 @@ Antworte sofort, ohne lange nachzudenken. Antworte NUR mit einem JSON-Array, ohn
 }
 function textSheet(){
   const d=new Date(),def="Text vom "+d.getDate()+"."+(d.getMonth()+1)+".";
+  const src=LS.get("as-txsrc","link");
   sheet(`<h2>📄 Wörter aus Text</h2>
-   <div class="muted small" style="line-height:1.5;margin-top:4px">Füge einen schwedischen Text ein, lade ihn über einen Link oder lies ihn aus Screenshots, z. B. eine Stellenanzeige oder einen Artikel. Die App sucht alle Wörter und Wendungen heraus, die für Business-Schwedisch wichtig sind und die du noch nicht als Karte hast – mit dem Satz aus dem Text als Beispiel.</div>
-   <label>Link zum Text (optional)</label><div class="row"><input id="txUrl" type="url" inputmode="url" autocapitalize="off" autocorrect="off" placeholder="https://…" style="flex:1"><button class="secondary" id="txLoad" type="button">Laden</button></div>
-   <button class="secondary" id="txShot" type="button" style="width:100%;margin-top:10px">📷 Text aus Screenshots lesen</button><input type="file" id="txFiles" accept="image/*" multiple class="hidden">
-   <label>Text</label><textarea id="txIn" style="min-height:160px" placeholder="Text hier einfügen – oder oben Link laden bzw. Screenshots wählen …"></textarea>
+   <div class="muted small" style="line-height:1.5;margin-top:4px">Die App sucht aus einem schwedischen Text alle Wörter heraus, die für Business-Schwedisch wichtig sind und die du noch nicht hast.</div>
+   <div class="stepttl">1 · Woher kommt der Text?</div>
+   <div class="seg" role="tablist">
+     <button type="button" data-src="link" role="tab">🔗<span>Link</span></button>
+     <button type="button" data-src="shot" role="tab">📷<span>Screenshots</span></button>
+     <button type="button" data-src="paste" role="tab">✍️<span>Einfügen</span></button>
+   </div>
+   <div class="srcpane" data-pane="link">
+     <div class="muted small">Link der Stellenanzeige oder des Artikels einfügen und laden.</div>
+     <div class="clearwrap"><input id="txUrl" type="url" inputmode="url" autocapitalize="off" autocorrect="off" placeholder="https://…"><button class="clr" type="button" data-clear="txUrl" aria-label="Link löschen">✕</button></div>
+     <div class="row" style="margin-top:8px"><button class="secondary" id="txUrlPaste" type="button" style="flex:1">📋 Aus Zwischenablage</button><button class="primary" id="txLoad" type="button" style="flex:1;padding:10px">Text laden</button></div>
+   </div>
+   <div class="srcpane" data-pane="shot">
+     <div class="muted small">Bis zu sechs Screenshots auswählen, z. B. aus LinkedIn. Funktioniert praktisch immer.</div>
+     <button class="primary" id="txShot" type="button" style="margin-top:8px;padding:12px">📷 Screenshots auswählen</button><input type="file" id="txFiles" accept="image/*" multiple class="hidden">
+   </div>
+   <div class="srcpane" data-pane="paste">
+     <div class="muted small">Text kopieren und hier einfügen.</div>
+     <button class="primary" id="txClipPaste" type="button" style="margin-top:8px;padding:12px">📋 Aus Zwischenablage einfügen</button>
+   </div>
+   <div class="msg" id="txSrcMsg"></div>
+   <div class="stepttl">2 · Text prüfen</div>
+   <div class="clearwrap"><textarea id="txIn" style="min-height:150px" placeholder="Hier erscheint der Text – du kannst ihn auch direkt hineintippen oder bearbeiten."></textarea><button class="clr" type="button" data-clear="txIn" aria-label="Text löschen">✕</button></div>
    <div class="muted small" id="txLen" style="margin-top:4px"></div>
-   <label>Name der neuen Sammlung</label><input id="txName" value="${esc(def)}">
+   <div class="stepttl">3 · Analysieren</div>
+   <label style="margin-top:0">Name der neuen Sammlung</label><input id="txName" value="${esc(def)}">
    <div class="btns"><button class="secondary" id="txCancel">Abbrechen</button><button class="primary" id="txGo">Text analysieren</button></div>
    <div class="msg" id="txMsg"></div><div id="txList"></div>`);
   const MAX=8000;
-  $("txIn").addEventListener("input",()=>{const n=$("txIn").value.length;$("txLen").textContent=n>MAX?`${n} Zeichen – nur die ersten ${MAX} werden analysiert.`:(n?n+" Zeichen":"")});
+  const setSrc=v=>{LS.set("as-txsrc",v);document.querySelectorAll(".seg button").forEach(b=>b.classList.toggle("on",b.dataset.src===v));document.querySelectorAll(".srcpane").forEach(p=>p.classList.toggle("hidden",p.dataset.pane!==v));$("txSrcMsg").textContent=""};
+  document.querySelectorAll(".seg button").forEach(b=>b.onclick=()=>setSrc(b.dataset.src));setSrc(src);
+  const upd=()=>{const n=$("txIn").value.length;$("txLen").textContent=n>MAX?`${n} Zeichen – nur die ersten ${MAX} werden analysiert.`:(n?n+" Zeichen":"")};
+  $("txIn").addEventListener("input",upd);
+  document.querySelectorAll("[data-clear]").forEach(b=>b.onclick=()=>{const f=$(b.dataset.clear);f.value="";f.dispatchEvent(new Event("input"));f.focus();$("txSrcMsg").textContent=""});
+  const srcMsg=(txt,cls)=>{$("txSrcMsg").className="msg "+(cls||"");$("txSrcMsg").textContent=txt};
+  const setIn=txt=>{$("txIn").value=txt;upd();srcMsg("Text übernommen – bitte kurz prüfen und dann „Text analysieren“ tippen.","ok")};
+  const clip=async()=>{try{return (await navigator.clipboard.readText()||"").trim()}catch(e){srcMsg("Die Zwischenablage ist nicht freigegeben. Tippe lange ins Feld und wähle „Klistra in“.","bad");return ""}};
+  $("txUrlPaste").onclick=async()=>{const c=await clip();if(c){$("txUrl").value=c;srcMsg("")}};
+  $("txClipPaste").onclick=async()=>{const c=await clip();if(c)setIn(c)};
   $("txCancel").onclick=closeSheet;
-  const setIn=txt=>{$("txIn").value=txt;$("txIn").dispatchEvent(new Event("input"));$("txMsg").className="msg ok";$("txMsg").textContent="Text übernommen – bitte kurz prüfen und dann „Text analysieren“ tippen."};
-  $("txLoad").onclick=async()=>{const key=LS.get("as-key","");if(!key){$("txMsg").textContent="Bitte zuerst unter ⚙︎ deinen API-Schlüssel eintragen.";return}
-    let u=$("txUrl").value.trim();if(!u){$("txMsg").textContent="Bitte zuerst einen Link einfügen.";return}if(!/^https?:\/\//i.test(u))u="https://"+u;
-    const b=$("txLoad");b.disabled=true;b.textContent="Lade …";$("txMsg").className="msg";$("txMsg").textContent="";
-    try{setIn(await textFromUrl(key,u))}catch(e){$("txMsg").className="msg bad";$("txMsg").textContent=e.message}
-    b.disabled=false;b.textContent="Laden"};
+  $("txLoad").onclick=async()=>{const key=LS.get("as-key","");if(!key){srcMsg("Bitte zuerst unter ⚙︎ deinen API-Schlüssel eintragen.","bad");return}
+    let u=$("txUrl").value.trim();if(!u){srcMsg("Bitte zuerst einen Link einfügen.","bad");return}if(!/^https?:\/\//i.test(u))u="https://"+u;
+    const b=$("txLoad");b.disabled=true;b.textContent="Lade …";srcMsg("");
+    try{setIn(await textFromUrl(key,u))}catch(e){srcMsg(e.message,"bad")}
+    b.disabled=false;b.textContent="Text laden"};
   $("txShot").onclick=()=>$("txFiles").click();
   $("txFiles").onchange=async e=>{const files=[...e.target.files];e.target.value="";if(!files.length)return;
-    const key=LS.get("as-key","");if(!key){$("txMsg").textContent="Bitte zuerst unter ⚙︎ deinen API-Schlüssel eintragen.";return}
-    const b=$("txShot");b.disabled=true;b.textContent=`Lese ${files.length} Screenshot${files.length>1?"s":""} …`;$("txMsg").className="msg";$("txMsg").textContent="";
-    try{setIn(await textFromImages(key,files))}catch(err){$("txMsg").className="msg bad";$("txMsg").textContent=err.message}
-    b.disabled=false;b.textContent="📷 Text aus Screenshots lesen"};
+    const key=LS.get("as-key","");if(!key){srcMsg("Bitte zuerst unter ⚙︎ deinen API-Schlüssel eintragen.","bad");return}
+    const b=$("txShot");b.disabled=true;b.textContent=`Lese ${files.length} Screenshot${files.length>1?"s":""} …`;srcMsg("");
+    try{setIn(await textFromImages(key,files))}catch(err){srcMsg(err.message,"bad")}
+    b.disabled=false;b.textContent="📷 Screenshots auswählen"};
   $("txGo").onclick=async()=>{
     const key=LS.get("as-key","");if(!key){$("txMsg").textContent="Bitte zuerst unter ⚙︎ deinen API-Schlüssel eintragen.";return}
-    const text=$("txIn").value.trim().slice(0,MAX);if(text.length<40){$("txMsg").textContent="Bitte einen etwas längeren Text einfügen.";return}
+    const text=$("txIn").value.trim().slice(0,MAX);if(text.length<40){$("txMsg").textContent="Bitte zuerst einen Text laden oder einfügen (Schritt 1 oder 2).";return}
     const b=$("txGo");b.disabled=true;b.textContent="Analysiere Text …";$("txMsg").className="msg";$("txMsg").textContent="";$("txList").innerHTML="";
     try{const res=(await wordsFromText(key,text)).filter(o=>o&&o.sv&&o.de);
       const knownSet=new Set(allCards().map(c=>core(c).toLowerCase()));
       const list=res.filter(o=>!knownSet.has(core({sv:o.sv}).toLowerCase()));
       $("txMsg").textContent=list.length?`${list.length} neue Wörter gefunden. Hake ab, was du lernen möchtest.`:"";
       $("txList").innerHTML=list.map((o,i)=>`<label class="item" style="cursor:pointer;margin:0;border:1px solid var(--line);border-radius:12px;margin-top:8px;align-items:flex-start;color:var(--ink);font-weight:400"><input type="checkbox" data-i="${i}" checked style="width:auto;margin-top:4px"><span class="t"><b>${esc(o.sv)}</b><span>${esc(o.de)} · ${esc(o.typ||"")}</span>${o.s?`<span style="display:block;margin-top:4px">${esc(o.s.replace(/[{}]/g,""))}</span>`:""}</span></label>`).join("")+
-        (list.length?`<div class="btns"><button class="primary" id="txTake">Als neue Sammlung anlegen</button></div>`:`<div class="muted small" style="margin-top:8px">Keine neuen Wörter gefunden – du kennst offenbar schon alles Wichtige aus diesem Text.</div>`);
+        (list.length?`<label>In welche Sammlung?</label><select id="txTarget"><option value="__new__">Neue Sammlung „${esc($("txName").value.trim()||def)}“</option>${user.colls.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("")}</select><div class="btns"><button class="primary" id="txTake">Karten übernehmen</button></div>`:`<div class="muted small" style="margin-top:8px">Keine neuen Wörter gefunden – du kennst offenbar schon alles Wichtige aus diesem Text.</div>`);
       if(list.length)$("txTake").onclick=()=>{
-        const nm=$("txName").value.trim()||def;const cid="c"+Date.now().toString(36);let n=0;
+        let cid=$("txTarget").value,nm;
+        if(cid==="__new__"){nm=$("txName").value.trim()||def;cid="c"+Date.now().toString(36);user.colls.push({id:cid,name:nm})}else nm=user.colls.find(x=>x.id===cid).name;
+        let n=0;
         $("txList").querySelectorAll("input[type=checkbox]").forEach(cb=>{if(!cb.checked)return;const o=list[+cb.dataset.i];const ok=o.s&&/\{.+?\}/.test(o.s);
           user.cards.push({id:"u"+Date.now().toString(36)+cb.dataset.i,t:"v",de:o.de,sv:o.sv,info:o.info||"",typ:o.typ||"Subst.",s:ok?o.s:"",d:ok?(o.d||""):"",alt:[],note:"Aus deinem Text",ki:true,coll:cid});n++});
         if(!n){$("txMsg").textContent="Bitte mindestens ein Wort anhaken.";return}
-        user.colls.push({id:cid,name:nm});saveUser();closeSheet();openColl(cid);toast(n+" Karten in „"+esc(nm)+"“")};
+        saveUser();closeSheet();openColl(cid);toast(n+" Karten in „"+esc(nm)+"“")};
     }catch(e){$("txMsg").textContent=e.message||"Das hat nicht geklappt."}
     b.disabled=false;b.textContent="Erneut analysieren";
   };
@@ -827,7 +866,7 @@ function editCard(c,fromLearn){
       if(/^(k|rv|fx)\d+$/.test(cid)&&!user.colls.some(x=>x.id===cid)){c.k=+cid.replace(/^(rv|fx|k)/,"");c.b=(cid.match(/^(rv|fx)/)||[])[1];c.coll=undefined}else{c.coll=cid;c.k=undefined;c.b=undefined}}
     if(isNew){n.id="u"+Date.now().toString(36);n.coll=c.coll;n.k=c.k;if(c.b)n.b=c.b;user.cards.push(n)}
     else if(isUser){Object.assign(user.cards.find(x=>x.id===c.id),n)}
-    else user.edits[c.id]=n;
+    else{if(user.edits[c.id]&&user.edits[c.id].coll)n.coll=user.edits[c.id].coll;user.edits[c.id]=n}
     saveUser();closeSheet();if(c.pick){renderHome();toast(c.autoCtx?"Karte gespeichert – du lernst sie später":"Karte gespeichert")}else afterEdit(fromLearn,c.id);
   };
   if(c.autoCtx){
@@ -859,14 +898,40 @@ function newColl(){
 }
 function renameColl(){
   const col=getColl(curColl);
-  sheet(`<h2>Sammlung umbenennen</h2><label>Name</label><input id="cName" value="${esc(col.name)}">
+  const cards=allCards().filter(col.match);
+  const hasBase=cards.some(c=>!user.cards.some(u=>u.id===c.id));
+  const targets=collections().filter(x=>x.own&&x.id!==col.id);
+  sheet(`<h2>Sammlung bearbeiten</h2><label>Name</label><input id="cName" value="${esc(col.name)}">
    <div class="btns"><button class="secondary" id="cCancel">Abbrechen</button><button class="primary" id="cSave">Speichern</button></div>
-   ${col.own?'<button class="danger" id="cDel" style="width:100%;margin-top:14px">Sammlung mit allen Karten löschen</button>':""}`);
+   <div class="stepttl">Zusammenführen</div>
+   <div class="muted small" style="line-height:1.5">Verschiebt alle ${cards.length} Karten dieser Sammlung in eine andere eigene Sammlung. Dein Lernfortschritt bleibt dabei erhalten.${col.own?" Diese Sammlung wird danach gelöscht.":" Die Kachel dieses Kapitels verschwindet dann von der Startseite."}</div>
+   <label>Ziel</label><select id="mTarget">${targets.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("")}<option value="__new__">Neue Sammlung …</option>${col.own&&hasBase?`<option value="__orig__">Buchkarten zurück in ihre Kapitel</option>`:""}</select>
+   <input id="mNew" placeholder="Name der neuen Sammlung" style="margin-top:8px" class="${targets.length?"hidden":""}">
+   <button class="secondary" id="mGo" style="width:100%;margin-top:10px">Karten verschieben</button>
+   ${col.own?'<button class="danger" id="cDel" style="width:100%;margin-top:18px">Sammlung mit allen Karten löschen</button>':""}`);
+  $("mTarget").onchange=()=>$("mNew").classList.toggle("hidden",$("mTarget").value!=="__new__");
   $("cCancel").onclick=closeSheet;
   $("cSave").onclick=()=>{const n=$("cName").value.trim();if(!n)return;
     if(col.own)user.colls.find(x=>x.id===col.id).name=n;else user.names[col.id]=n;saveUser();closeSheet();renderColl()};
-  if(col.own)$("cDel").onclick=()=>{if(!confirm("Sammlung und alle ihre Karten löschen?"))return;
-    user.cards=user.cards.filter(c=>c.coll!==col.id);user.colls=user.colls.filter(x=>x.id!==col.id);saveUser();closeSheet();show("vHome");renderHome()};
+  $("mGo").onclick=()=>{
+    let tid=$("mTarget").value,tname;
+    if(tid==="__new__"){tname=$("mNew").value.trim();if(!tname){alert("Bitte einen Namen für die neue Sammlung eintragen.");return}}
+    else if(tid==="__orig__")tname="ihre ursprünglichen Kapitel";else tname=user.colls.find(x=>x.id===tid).name;
+    if(!confirm(`${cards.length} Karten nach „${tname}“ verschieben?`))return;
+    if(tid==="__new__"){tid="c"+Date.now().toString(36);user.colls.push({id:tid,name:tname})}
+    let moved=0;
+    cards.forEach(c=>{const uc=user.cards.find(x=>x.id===c.id);
+      if(tid==="__orig__"){if(!uc&&user.edits[c.id]){delete user.edits[c.id].coll;moved++}return}
+      if(uc)uc.coll=tid;else user.edits[c.id]=Object.assign({},user.edits[c.id]||{},{coll:tid});moved++});
+    if(col.own&&!allCards().some(col.match))user.colls=user.colls.filter(x=>x.id!==col.id);
+    saveUser();closeSheet();
+    if(tid==="__orig__"){show("vHome");renderHome()}else openColl(tid);
+    toast(moved+" Karten verschoben");
+  };
+  if(col.own)$("cDel").onclick=()=>{if(!confirm("Sammlung und alle ihre eigenen Karten löschen? Verschobene Buchkarten kehren in ihre Kapitel zurück."))return;
+    user.cards=user.cards.filter(c=>c.coll!==col.id);
+    Object.keys(user.edits).forEach(id=>{if(user.edits[id].coll===col.id)delete user.edits[id].coll});
+    user.colls=user.colls.filter(x=>x.id!==col.id);saveUser();closeSheet();show("vHome");renderHome()};
 }
 function settings(){
   sheet(`<h2>Einstellungen</h2>
