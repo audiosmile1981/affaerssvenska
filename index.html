@@ -378,14 +378,18 @@ Antworte NUR mit einem JSON-Array, ohne Erklärung und ohne Codeblock:
 [{"sv":"en introduktion","de":"Einarbeitung, Onboarding","typ":"Subst.","info":"-er","s":"Alla nyanställda får en {introduktion} under första veckan.","d":"Alle neuen Mitarbeitenden bekommen in der ersten Woche **eine Einarbeitung**."}]`;
   return askJSON(key,prompt,true);
 }
-async function wordsFromText(key,text,count){
+async function wordsFromText(key,text){
   const known=[...new Set(allCards().filter(c=>c.t==="v").map(c=>core(c).toLowerCase()))].join(", ");
   const prompt=`Du hilfst einem deutschsprachigen HR-Profi, der Business-Schwedisch auf Niveau B1–B2 lernt und in Schweden arbeiten möchte.
 Hier ist ein schwedischer Text (z. B. Stellenanzeige oder Artikel):
 """
 ${text}
 """
-Wähle bis zu ${count} Wörter oder feste Wendungen aus diesem Text aus, die sich zu lernen lohnen: gebräuchlich im schwedischen Arbeits- und Alltagsleben, relevant für Beruf und Bewerbung. Keine Eigennamen, Firmennamen, Ortsnamen, keine Grundwörter auf Anfängerniveau (wie och, att, vara, jobb), nichts Exotisches. Sortiere nach Nützlichkeit, das nützlichste zuerst.
+Wähle aus diesem Text ALLE Wörter und festen Wendungen aus, die sich für diesen Lernenden wirklich zu lernen lohnen – nicht mehr und nicht weniger. Es gibt keine feste Anzahl: Bei einem kurzen, einfachen Text können es drei sein, bei einer anspruchsvollen Stellenanzeige dreißig.
+Nimm ein Wort nur auf, wenn es (1) im schwedischen Berufsleben, in Bewerbung, HR, Wirtschaft oder Verwaltung gebräuchlich ist und (2) über Grundwortschatz hinausgeht.
+Nimm NICHT auf: Pronomen, Artikel, Konjunktionen, Präpositionen, Hilfs- und Modalverben, Zahlwörter, Grundwörter auf Anfängerniveau (z. B. jag, och, att, vara, ha, göra, stor, bra, dag, jobb, arbeta), Eigennamen, Firmen- und Ortsnamen, englische Fachwörter ohne schwedische Besonderheit, seltene oder sehr spezielle Fachbegriffe ohne Nutzen für den Lernenden.
+Feste Wendungen und Partikelverben (z. B. „ta ansvar för“, „ha god förmåga att“) sind besonders wertvoll, nimm sie als Ganzes auf.
+Sortiere nach Nützlichkeit, das nützlichste zuerst.
 Diese Wörter kennt der Lernende schon, wähle KEINES davon aus (auch nicht in gebeugter Form): ${known}
 Gib für jedes Wort die Grundform an (bei Substantiven mit en/ett davor; bei Partikelverben die ganze Verbindung), eine kurze deutsche Bedeutung in genau diesem Zusammenhang, die Wortart (eines von: Subst., Verb, Partikelverb, Adj., Adv., Ausdruck, Verbausdruck) und Pluralendung bzw. Konjugationsgruppe (1–4).
 Als Beispielsatz übernimmst du den Satz aus dem Text, in dem das Wort vorkommt, wörtlich (ist er sehr lang, kürze ihn behutsam auf höchstens 20 Wörter). Markiere darin das Lernwort in der Form, in der es dort steht, genau einmal mit geschweiften Klammern. Übersetze den Satz in natürliches Deutsch und setze die Entsprechung des Lernworts samt Artikel in **doppelte Sternchen**.
@@ -396,10 +400,9 @@ Antworte sofort, ohne lange nachzudenken. Antworte NUR mit einem JSON-Array, ohn
 function textSheet(){
   const d=new Date(),def="Text vom "+d.getDate()+"."+(d.getMonth()+1)+".";
   sheet(`<h2>📄 Wörter aus Text</h2>
-   <div class="muted small" style="line-height:1.5;margin-top:4px">Füge einen schwedischen Text ein, z. B. eine Stellenanzeige oder einen Artikel. Die App sucht Wörter heraus, die sich zu lernen lohnen und die du noch nicht als Karte hast – mit dem Satz aus dem Text als Beispiel.</div>
+   <div class="muted small" style="line-height:1.5;margin-top:4px">Füge einen schwedischen Text ein, z. B. eine Stellenanzeige oder einen Artikel. Die App sucht alle Wörter und Wendungen heraus, die für Business-Schwedisch wichtig sind und die du noch nicht als Karte hast – mit dem Satz aus dem Text als Beispiel.</div>
    <label>Text</label><textarea id="txIn" style="min-height:160px" placeholder="Text hier einfügen …"></textarea>
    <div class="muted small" id="txLen" style="margin-top:4px"></div>
-   <label>Höchstens wie viele Wörter?</label><select id="txCount"><option>10</option><option selected>15</option><option>20</option><option>25</option></select>
    <label>Name der neuen Sammlung</label><input id="txName" value="${esc(def)}">
    <div class="btns"><button class="secondary" id="txCancel">Abbrechen</button><button class="primary" id="txGo">Text analysieren</button></div>
    <div class="msg" id="txMsg"></div><div id="txList"></div>`);
@@ -410,7 +413,7 @@ function textSheet(){
     const key=LS.get("as-key","");if(!key){$("txMsg").textContent="Bitte zuerst unter ⚙︎ deinen API-Schlüssel eintragen.";return}
     const text=$("txIn").value.trim().slice(0,MAX);if(text.length<40){$("txMsg").textContent="Bitte einen etwas längeren Text einfügen.";return}
     const b=$("txGo");b.disabled=true;b.textContent="Analysiere Text …";$("txMsg").className="msg";$("txMsg").textContent="";$("txList").innerHTML="";
-    try{const res=(await wordsFromText(key,text,+$("txCount").value)).filter(o=>o&&o.sv&&o.de);
+    try{const res=(await wordsFromText(key,text)).filter(o=>o&&o.sv&&o.de);
       const knownSet=new Set(allCards().map(c=>core(c).toLowerCase()));
       const list=res.filter(o=>!knownSet.has(core({sv:o.sv}).toLowerCase()));
       $("txMsg").textContent=list.length?`${list.length} neue Wörter gefunden. Hake ab, was du lernen möchtest.`:"";
