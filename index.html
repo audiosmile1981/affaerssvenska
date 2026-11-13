@@ -161,6 +161,7 @@ table.st{width:100%;border-collapse:collapse;font-size:.9rem}table.st td,table.s
   </div>
   <button class="primary" id="learnAll">Alle fälligen Karten lernen</button>
   <div class="row" style="margin-top:10px"><button class="secondary" id="newWord" style="flex:1;padding:14px 8px">＋ Neues Wort</button><button class="secondary" id="suggBtn" style="flex:1;padding:14px 8px">💡 Wortvorschläge</button></div>
+  <button class="secondary" id="textBtn" style="width:100%;margin-top:10px;padding:14px">📄 Wörter aus Text (Stellenanzeige, Artikel …)</button>
   <div id="noData" class="empty hidden" style="margin-top:16px">Noch keine Buchkarten geladen.<br>Tippe auf ⚙︎ und dann auf „Karten laden“.</div>
   <div class="section-title"><h2>Sammlungen</h2><button class="secondary" id="newColl">+ Sammlung</button></div>
   <div class="grid" id="grid"></div>
@@ -376,6 +377,54 @@ ${CARD_RULES}
 Antworte NUR mit einem JSON-Array, ohne Erklärung und ohne Codeblock:
 [{"sv":"en introduktion","de":"Einarbeitung, Onboarding","typ":"Subst.","info":"-er","s":"Alla nyanställda får en {introduktion} under första veckan.","d":"Alle neuen Mitarbeitenden bekommen in der ersten Woche **eine Einarbeitung**."}]`;
   return askJSON(key,prompt,true);
+}
+async function wordsFromText(key,text,count){
+  const known=[...new Set(allCards().filter(c=>c.t==="v").map(c=>core(c).toLowerCase()))].join(", ");
+  const prompt=`Du hilfst einem deutschsprachigen HR-Profi, der Business-Schwedisch auf Niveau B1–B2 lernt und in Schweden arbeiten möchte.
+Hier ist ein schwedischer Text (z. B. Stellenanzeige oder Artikel):
+"""
+${text}
+"""
+Wähle bis zu ${count} Wörter oder feste Wendungen aus diesem Text aus, die sich zu lernen lohnen: gebräuchlich im schwedischen Arbeits- und Alltagsleben, relevant für Beruf und Bewerbung. Keine Eigennamen, Firmennamen, Ortsnamen, keine Grundwörter auf Anfängerniveau (wie och, att, vara, jobb), nichts Exotisches. Sortiere nach Nützlichkeit, das nützlichste zuerst.
+Diese Wörter kennt der Lernende schon, wähle KEINES davon aus (auch nicht in gebeugter Form): ${known}
+Gib für jedes Wort die Grundform an (bei Substantiven mit en/ett davor; bei Partikelverben die ganze Verbindung), eine kurze deutsche Bedeutung in genau diesem Zusammenhang, die Wortart (eines von: Subst., Verb, Partikelverb, Adj., Adv., Ausdruck, Verbausdruck) und Pluralendung bzw. Konjugationsgruppe (1–4).
+Als Beispielsatz übernimmst du den Satz aus dem Text, in dem das Wort vorkommt, wörtlich (ist er sehr lang, kürze ihn behutsam auf höchstens 20 Wörter). Markiere darin das Lernwort in der Form, in der es dort steht, genau einmal mit geschweiften Klammern. Übersetze den Satz in natürliches Deutsch und setze die Entsprechung des Lernworts samt Artikel in **doppelte Sternchen**.
+Antworte sofort, ohne lange nachzudenken. Antworte NUR mit einem JSON-Array, ohne Erklärung und ohne Codeblock:
+[{"sv":"en arbetsuppgift","de":"Aufgabe, Arbeitsaufgabe","typ":"Subst.","info":"-er","s":"Dina {arbetsuppgifter} omfattar rekrytering och onboarding.","d":"Deine **Aufgaben** umfassen Recruiting und Onboarding."}]`;
+  return askJSON(key,prompt,true);
+}
+function textSheet(){
+  const d=new Date(),def="Text vom "+d.getDate()+"."+(d.getMonth()+1)+".";
+  sheet(`<h2>📄 Wörter aus Text</h2>
+   <div class="muted small" style="line-height:1.5;margin-top:4px">Füge einen schwedischen Text ein, z. B. eine Stellenanzeige oder einen Artikel. Die App sucht Wörter heraus, die sich zu lernen lohnen und die du noch nicht als Karte hast – mit dem Satz aus dem Text als Beispiel.</div>
+   <label>Text</label><textarea id="txIn" style="min-height:160px" placeholder="Text hier einfügen …"></textarea>
+   <div class="muted small" id="txLen" style="margin-top:4px"></div>
+   <label>Höchstens wie viele Wörter?</label><select id="txCount"><option>10</option><option selected>15</option><option>20</option><option>25</option></select>
+   <label>Name der neuen Sammlung</label><input id="txName" value="${esc(def)}">
+   <div class="btns"><button class="secondary" id="txCancel">Abbrechen</button><button class="primary" id="txGo">Text analysieren</button></div>
+   <div class="msg" id="txMsg"></div><div id="txList"></div>`);
+  const MAX=8000;
+  $("txIn").addEventListener("input",()=>{const n=$("txIn").value.length;$("txLen").textContent=n>MAX?`${n} Zeichen – nur die ersten ${MAX} werden analysiert.`:(n?n+" Zeichen":"")});
+  $("txCancel").onclick=closeSheet;
+  $("txGo").onclick=async()=>{
+    const key=LS.get("as-key","");if(!key){$("txMsg").textContent="Bitte zuerst unter ⚙︎ deinen API-Schlüssel eintragen.";return}
+    const text=$("txIn").value.trim().slice(0,MAX);if(text.length<40){$("txMsg").textContent="Bitte einen etwas längeren Text einfügen.";return}
+    const b=$("txGo");b.disabled=true;b.textContent="Analysiere Text …";$("txMsg").className="msg";$("txMsg").textContent="";$("txList").innerHTML="";
+    try{const res=(await wordsFromText(key,text,+$("txCount").value)).filter(o=>o&&o.sv&&o.de);
+      const knownSet=new Set(allCards().map(c=>core(c).toLowerCase()));
+      const list=res.filter(o=>!knownSet.has(core({sv:o.sv}).toLowerCase()));
+      $("txMsg").textContent=list.length?`${list.length} neue Wörter gefunden. Hake ab, was du lernen möchtest.`:"";
+      $("txList").innerHTML=list.map((o,i)=>`<label class="item" style="cursor:pointer;margin:0;border:1px solid var(--line);border-radius:12px;margin-top:8px;align-items:flex-start;color:var(--ink);font-weight:400"><input type="checkbox" data-i="${i}" checked style="width:auto;margin-top:4px"><span class="t"><b>${esc(o.sv)}</b><span>${esc(o.de)} · ${esc(o.typ||"")}</span>${o.s?`<span style="display:block;margin-top:4px">${esc(o.s.replace(/[{}]/g,""))}</span>`:""}</span></label>`).join("")+
+        (list.length?`<div class="btns"><button class="primary" id="txTake">Als neue Sammlung anlegen</button></div>`:`<div class="muted small" style="margin-top:8px">Keine neuen Wörter gefunden – du kennst offenbar schon alles Wichtige aus diesem Text.</div>`);
+      if(list.length)$("txTake").onclick=()=>{
+        const nm=$("txName").value.trim()||def;const cid="c"+Date.now().toString(36);let n=0;
+        $("txList").querySelectorAll("input[type=checkbox]").forEach(cb=>{if(!cb.checked)return;const o=list[+cb.dataset.i];const ok=o.s&&/\{.+?\}/.test(o.s);
+          user.cards.push({id:"u"+Date.now().toString(36)+cb.dataset.i,t:"v",de:o.de,sv:o.sv,info:o.info||"",typ:o.typ||"Subst.",s:ok?o.s:"",d:ok?(o.d||""):"",alt:[],note:"Aus deinem Text",ki:true,coll:cid});n++});
+        if(!n){$("txMsg").textContent="Bitte mindestens ein Wort anhaken.";return}
+        user.colls.push({id:cid,name:nm});saveUser();closeSheet();openColl(cid);toast(n+" Karten in „"+esc(nm)+"“")};
+    }catch(e){$("txMsg").textContent=e.message||"Das hat nicht geklappt."}
+    b.disabled=false;b.textContent="Erneut analysieren";
+  };
 }
 function suggestSheet(){
   const own=user.colls;const last=LS.get("as-lastsugg","");
@@ -815,6 +864,7 @@ $("card").addEventListener("click",e=>{const w=e.target.closest&&e.target.closes
   const box=w.closest(".sv,.answer");const sentence=(box?box.textContent:"").replace(/\s+/g," ").trim();
   w.classList.add("tw-on");setTimeout(()=>w.classList.remove("tw-on"),400);wordCard(w.dataset.w,sentence)});
 $("suggBtn").onclick=suggestSheet;
+$("textBtn").onclick=textSheet;
 $("collFill").onclick=()=>{const col=getColl(curColl);const n=allCards().filter(col.match).filter(c=>c.t==="v"&&!c.s).length;if(confirm(`Für ${n} Karten Beispielsätze erzeugen? Das nutzt dein API-Guthaben (grob ${Math.max(1,Math.round(n*0.05))} Cent).`))fillSentences(curColl)};
 $("statBtn").onclick=()=>{renderStats();show("vStats")};
 $("statBack").onclick=()=>{show("vHome");renderHome()};
