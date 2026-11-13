@@ -378,6 +378,48 @@ Antworte NUR mit einem JSON-Array, ohne Erklärung und ohne Codeblock:
 [{"sv":"en introduktion","de":"Einarbeitung, Onboarding","typ":"Subst.","info":"-er","s":"Alla nyanställda får en {introduktion} under första veckan.","d":"Alle neuen Mitarbeitenden bekommen in der ersten Woche **eine Einarbeitung**."}]`;
   return askJSON(key,prompt,true);
 }
+async function askText(key,content,opts){
+  opts=opts||{};let last="";
+  for(const model of MODELS){
+    for(let attempt=0;attempt<2;attempt++){
+      const body={model,max_tokens:6000,messages:[{role:"user",content}]};
+      if(opts.fetch)body.tools=[{type:"web_fetch_20250910",name:"web_fetch",max_uses:3,max_content_tokens:30000}];
+      if(attempt===0)body.thinking={type:"disabled"};
+      const headers={"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"};
+      if(opts.fetch)headers["anthropic-beta"]="web-fetch-2025-09-10";
+      let r;try{r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers,body:JSON.stringify(body)})}catch(e){throw new Error("Keine Verbindung. Bist du online?")}
+      const raw=await r.text();
+      if(r.status===401)throw new Error("Der API-Schlüssel stimmt nicht. Bitte unter ⚙︎ prüfen.");
+      if(r.status===402||r.status===403)throw new Error("Kein Guthaben oder kein Zugriff. Bitte in der Console prüfen.");
+      if(r.status===429)throw new Error("Zu viele Anfragen. Bitte kurz warten.");
+      if(r.status===400&&/thinking/i.test(raw)&&attempt===0)continue;
+      if(r.status===400||r.status===404){last=raw;if(/model/i.test(raw))break;throw new Error("Anfrage abgelehnt: "+raw.slice(0,160))}
+      if(!r.ok)throw new Error("Fehler "+r.status+": "+raw.slice(0,160));
+      const j=JSON.parse(raw);const txt=(j.content||[]).filter(x=>x.type==="text").map(x=>x.text||"").join("").trim();
+      if(!txt){last="leere Antwort";break}
+      return txt;
+    }
+  }
+  throw new Error("Das hat nicht geklappt. Details: "+String(last).slice(0,160));
+}
+async function textFromUrl(key,url){
+  const txt=await askText(key,`Rufe diese Seite ab: ${url}
+Gib danach NUR den eigentlichen schwedischen Haupttext der Seite zurück (bei einer Stellenanzeige: Titel, Beschreibung, Aufgaben, Anforderungen, Angebot; bei einem Artikel: Überschrift und Fließtext). Lass Menüs, Cookie-Hinweise, Werbung, Fußzeilen und Links weg. Gib den Text wörtlich wieder, ohne Übersetzung, ohne Zusammenfassung, ohne eigene Kommentare.
+Kannst du die Seite nicht abrufen oder enthält sie keinen nennenswerten Text (z. B. weil eine Anmeldung nötig ist), antworte ausschließlich mit: FEHLER: <kurzer Grund auf Deutsch>`,{fetch:true});
+  if(/^FEHLER:/i.test(txt))throw new Error("Die Seite ließ sich nicht auslesen – "+txt.replace(/^FEHLER:\s*/i,"")+" Tipp: Mach stattdessen Screenshots.");
+  return txt;
+}
+function shrinkImage(file){return new Promise((res,rej)=>{const fr=new FileReader();fr.onerror=rej;fr.onload=()=>{const img=new Image();img.onerror=rej;img.onload=()=>{
+  const max=1600,sc=Math.min(1,max/Math.max(img.width,img.height)),cv=document.createElement("canvas");cv.width=Math.round(img.width*sc);cv.height=Math.round(img.height*sc);
+  cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);res(cv.toDataURL("image/jpeg",.85).split(",")[1])};img.src=fr.result};fr.readAsDataURL(file)})}
+async function textFromImages(key,files){
+  const imgs=[];for(const f of files.slice(0,6))imgs.push({type:"image",source:{type:"base64",media_type:"image/jpeg",data:await shrinkImage(f)}});
+  imgs.push({type:"text",text:`Das sind Screenshots eines schwedischen Textes (z. B. Stellenanzeige oder Artikel), in dieser Reihenfolge. Schreibe den schwedischen Haupttext wörtlich ab, als zusammenhängenden Text. Lass Bedienelemente, Uhrzeit, Menüs und Werbung weg und entferne Wiederholungen, wo sich Screenshots überlappen. Keine Übersetzung, keine Kommentare.
+Ist auf den Bildern kein schwedischer Text erkennbar, antworte ausschließlich mit: FEHLER: <kurzer Grund auf Deutsch>`});
+  const txt=await askText(key,imgs);
+  if(/^FEHLER:/i.test(txt))throw new Error(txt.replace(/^FEHLER:\s*/i,""));
+  return txt;
+}
 async function wordsFromText(key,text){
   const known=[...new Set(allCards().filter(c=>c.t==="v").map(c=>core(c).toLowerCase()))].join(", ");
   const prompt=`Du hilfst einem deutschsprachigen HR-Profi, der Business-Schwedisch auf Niveau B1–B2 lernt und in Schweden arbeiten möchte.
@@ -400,8 +442,10 @@ Antworte sofort, ohne lange nachzudenken. Antworte NUR mit einem JSON-Array, ohn
 function textSheet(){
   const d=new Date(),def="Text vom "+d.getDate()+"."+(d.getMonth()+1)+".";
   sheet(`<h2>📄 Wörter aus Text</h2>
-   <div class="muted small" style="line-height:1.5;margin-top:4px">Füge einen schwedischen Text ein, z. B. eine Stellenanzeige oder einen Artikel. Die App sucht alle Wörter und Wendungen heraus, die für Business-Schwedisch wichtig sind und die du noch nicht als Karte hast – mit dem Satz aus dem Text als Beispiel.</div>
-   <label>Text</label><textarea id="txIn" style="min-height:160px" placeholder="Text hier einfügen …"></textarea>
+   <div class="muted small" style="line-height:1.5;margin-top:4px">Füge einen schwedischen Text ein, lade ihn über einen Link oder lies ihn aus Screenshots, z. B. eine Stellenanzeige oder einen Artikel. Die App sucht alle Wörter und Wendungen heraus, die für Business-Schwedisch wichtig sind und die du noch nicht als Karte hast – mit dem Satz aus dem Text als Beispiel.</div>
+   <label>Link zum Text (optional)</label><div class="row"><input id="txUrl" type="url" inputmode="url" autocapitalize="off" autocorrect="off" placeholder="https://…" style="flex:1"><button class="secondary" id="txLoad" type="button">Laden</button></div>
+   <button class="secondary" id="txShot" type="button" style="width:100%;margin-top:10px">📷 Text aus Screenshots lesen</button><input type="file" id="txFiles" accept="image/*" multiple class="hidden">
+   <label>Text</label><textarea id="txIn" style="min-height:160px" placeholder="Text hier einfügen – oder oben Link laden bzw. Screenshots wählen …"></textarea>
    <div class="muted small" id="txLen" style="margin-top:4px"></div>
    <label>Name der neuen Sammlung</label><input id="txName" value="${esc(def)}">
    <div class="btns"><button class="secondary" id="txCancel">Abbrechen</button><button class="primary" id="txGo">Text analysieren</button></div>
@@ -409,6 +453,18 @@ function textSheet(){
   const MAX=8000;
   $("txIn").addEventListener("input",()=>{const n=$("txIn").value.length;$("txLen").textContent=n>MAX?`${n} Zeichen – nur die ersten ${MAX} werden analysiert.`:(n?n+" Zeichen":"")});
   $("txCancel").onclick=closeSheet;
+  const setIn=txt=>{$("txIn").value=txt;$("txIn").dispatchEvent(new Event("input"));$("txMsg").className="msg ok";$("txMsg").textContent="Text übernommen – bitte kurz prüfen und dann „Text analysieren“ tippen."};
+  $("txLoad").onclick=async()=>{const key=LS.get("as-key","");if(!key){$("txMsg").textContent="Bitte zuerst unter ⚙︎ deinen API-Schlüssel eintragen.";return}
+    let u=$("txUrl").value.trim();if(!u){$("txMsg").textContent="Bitte zuerst einen Link einfügen.";return}if(!/^https?:\/\//i.test(u))u="https://"+u;
+    const b=$("txLoad");b.disabled=true;b.textContent="Lade …";$("txMsg").className="msg";$("txMsg").textContent="";
+    try{setIn(await textFromUrl(key,u))}catch(e){$("txMsg").className="msg bad";$("txMsg").textContent=e.message}
+    b.disabled=false;b.textContent="Laden"};
+  $("txShot").onclick=()=>$("txFiles").click();
+  $("txFiles").onchange=async e=>{const files=[...e.target.files];e.target.value="";if(!files.length)return;
+    const key=LS.get("as-key","");if(!key){$("txMsg").textContent="Bitte zuerst unter ⚙︎ deinen API-Schlüssel eintragen.";return}
+    const b=$("txShot");b.disabled=true;b.textContent=`Lese ${files.length} Screenshot${files.length>1?"s":""} …`;$("txMsg").className="msg";$("txMsg").textContent="";
+    try{setIn(await textFromImages(key,files))}catch(err){$("txMsg").className="msg bad";$("txMsg").textContent=err.message}
+    b.disabled=false;b.textContent="📷 Text aus Screenshots lesen"};
   $("txGo").onclick=async()=>{
     const key=LS.get("as-key","");if(!key){$("txMsg").textContent="Bitte zuerst unter ⚙︎ deinen API-Schlüssel eintragen.";return}
     const text=$("txIn").value.trim().slice(0,MAX);if(text.length<40){$("txMsg").textContent="Bitte einen etwas längeren Text einfügen.";return}
