@@ -378,7 +378,7 @@ async function fillSentences(colId){
 async function suggestWords(key,topic,count){
   const known=[...new Set(allCards().filter(c=>c.t==="v").map(c=>core(c).toLowerCase()))].join(", ");
   const prompt=`Du erstellst Lernkarten für einen deutschsprachigen HR-Profi, der Business-Schwedisch auf Niveau B1–B2 lernt und in Schweden arbeiten möchte.
-Schlage ${count} nützliche, gebräuchliche schwedische Wörter oder feste Wendungen zum Thema „${topic}“ vor, die im schwedischen Berufsalltag wirklich verwendet werden. Nur echte, gängige Wörter, nichts Erfundenes, keine veralteten Begriffe.
+Schlage ${count} verschiedene (keines doppelt) nützliche, gebräuchliche schwedische Wörter oder feste Wendungen zum Thema „${topic}“ vor, die im schwedischen Berufsalltag wirklich verwendet werden. Nur echte, gängige Wörter, nichts Erfundenes, keine veralteten Begriffe.
 Diese Wörter kennt der Lernende schon, schlage KEINES davon vor: ${known}
 Gib für jedes Wort Grundform (bei Substantiven mit en/ett davor), kurze deutsche Bedeutung, Wortart (eines von: Subst., Verb, Partikelverb, Adj., Adv., Ausdruck, Verbausdruck) und Pluralendung bzw. Konjugationsgruppe (1–4) an.
 ${CARD_RULES}
@@ -439,6 +439,8 @@ Wähle aus diesem Text ALLE Wörter und festen Wendungen aus, die sich für dies
 Nimm ein Wort nur auf, wenn es (1) im schwedischen Berufsleben, in Bewerbung, HR, Wirtschaft oder Verwaltung gebräuchlich ist und (2) über Grundwortschatz hinausgeht.
 Nimm NICHT auf: Pronomen, Artikel, Konjunktionen, Präpositionen, Hilfs- und Modalverben, Zahlwörter, Grundwörter auf Anfängerniveau (z. B. jag, och, att, vara, ha, göra, stor, bra, dag, jobb, arbeta), Eigennamen, Firmen- und Ortsnamen, englische Fachwörter ohne schwedische Besonderheit, seltene oder sehr spezielle Fachbegriffe ohne Nutzen für den Lernenden.
 Feste Wendungen und Partikelverben (z. B. „ta ansvar för“, „ha god förmåga att“) sind besonders wertvoll, nimm sie als Ganzes auf.
+Jedes Wort darf nur EINMAL vorkommen, auch wenn es im Text mehrfach steht – wähle dann den aussagekräftigsten Satz als Beispiel.
+Gib Verben ohne „att“ an (also „förena“, nicht „att förena“).
 Sortiere nach Nützlichkeit, das nützlichste zuerst.
 Diese Wörter kennt der Lernende schon, wähle KEINES davon aus (auch nicht in gebeugter Form): ${known}
 Gib für jedes Wort die Grundform an (bei Substantiven mit en/ett davor; bei Partikelverben die ganze Verbindung), eine kurze deutsche Bedeutung in genau diesem Zusammenhang, die Wortart (eines von: Subst., Verb, Partikelverb, Adj., Adv., Ausdruck, Verbausdruck) und Pluralendung bzw. Konjugationsgruppe (1–4).
@@ -507,8 +509,10 @@ function textSheet(){
     const text=$("txIn").value.trim().slice(0,MAX);if(text.length<40){$("txMsg").textContent="Bitte zuerst einen Text laden oder einfügen (Schritt 1 oder 2).";return}
     const b=$("txGo");b.disabled=true;b.textContent="Analysiere Text …";$("txMsg").className="msg";$("txMsg").textContent="";$("txList").innerHTML="";
     try{const res=(await wordsFromText(key,text)).filter(o=>o&&o.sv&&o.de);
-      const knownSet=new Set(allCards().map(c=>core(c).toLowerCase()));
-      const list=res.filter(o=>!knownSet.has(core({sv:o.sv}).toLowerCase()));
+      const nk=x=>x.toLowerCase().replace(/^\((en|ett)\)\s*/,"").replace(/^(en|ett|att)\s+/,"").trim();
+      const knownSet=new Set(allCards().map(c=>nk(core(c))));
+      const seenSet=new Set();
+      const list=res.filter(o=>{const k=nk(core({sv:o.sv}));if(!k||knownSet.has(k)||seenSet.has(k))return false;seenSet.add(k);return true});
       $("txMsg").textContent=list.length?`${list.length} neue Wörter gefunden. Hake ab, was du lernen möchtest.`:"";
       $("txList").innerHTML=list.map((o,i)=>`<label class="item" style="cursor:pointer;margin:0;border:1px solid var(--line);border-radius:12px;margin-top:8px;align-items:flex-start;color:var(--ink);font-weight:400"><input type="checkbox" data-i="${i}" checked style="width:auto;margin-top:4px"><span class="t"><b>${esc(o.sv)}</b><span>${esc(o.de)} · ${esc(o.typ||"")}</span>${o.s?`<span style="display:block;margin-top:4px">${esc(o.s.replace(/[{}]/g,""))}</span>`:""}</span></label>`).join("")+
         (list.length?`<label>In welche Sammlung?</label><select id="txTarget"><option value="__new__">Neue Sammlung „${esc($("txName").value.trim()||def)}“</option>${user.colls.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("")}</select><div class="btns"><button class="primary" id="txTake">Karten übernehmen</button></div>`:`<div class="muted small" style="margin-top:8px">Keine neuen Wörter gefunden – du kennst offenbar schon alles Wichtige aus diesem Text.</div>`);
@@ -541,8 +545,10 @@ function suggestSheet(){
     const topic=$("sgTopic").value.trim();if(!topic){$("sgMsg").textContent="Bitte ein Thema eintragen.";return}
     LS.set("as-lasttopic",topic);const b=$("sgGo");b.disabled=true;b.textContent="Suche Wörter …";$("sgMsg").textContent="";$("sgList").innerHTML="";
     try{const res=(await suggestWords(key,topic,+$("sgCount").value)).filter(o=>o&&o.sv&&o.de);
-      const knownSet=new Set(allCards().map(c=>core(c).toLowerCase()));
-      const list=res.filter(o=>!knownSet.has(core({sv:o.sv}).toLowerCase()));
+      const nk=x=>x.toLowerCase().replace(/^\((en|ett)\)\s*/,"").replace(/^(en|ett|att)\s+/,"").trim();
+      const knownSet=new Set(allCards().map(c=>nk(core(c))));
+      const seenSet=new Set();
+      const list=res.filter(o=>{const k=nk(core({sv:o.sv}));if(!k||knownSet.has(k)||seenSet.has(k))return false;seenSet.add(k);return true});
       $("sgList").innerHTML=list.map((o,i)=>`<label class="item" style="cursor:pointer;margin:0;border:1px solid var(--line);border-radius:12px;margin-top:8px;align-items:flex-start;color:var(--ink);font-weight:400"><input type="checkbox" data-i="${i}" checked style="width:auto;margin-top:4px"><span class="t"><b>${esc(o.sv)}</b><span>${esc(o.de)}</span>${o.s?`<span style="display:block;margin-top:4px">${esc(o.s.replace(/[{}]/g,""))}</span>`:""}</span></label>`).join("")+
         (list.length?`<div class="btns"><button class="primary" id="sgTake">Ausgewählte übernehmen</button></div>`:`<div class="muted small" style="margin-top:8px">Keine neuen Wörter gefunden. Versuch ein anderes Thema.</div>`);
       if(list.length)$("sgTake").onclick=()=>{
