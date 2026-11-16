@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Affärssvenska">
 <title>Affärssvenska</title>
-<link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json"><script src="fb.js"></script><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -170,9 +170,10 @@ table.st{width:100%;border-collapse:collapse;font-size:.9rem}table.st td,table.s
   <button class="primary" id="learnAll">Alle fälligen Karten lernen</button>
   <div class="row" style="margin-top:10px"><button class="secondary" id="newWord" style="flex:1;padding:14px 8px">＋ Neues Wort</button><button class="secondary" id="suggBtn" style="flex:1;padding:14px 8px">💡 Wortvorschläge</button></div>
   <button class="secondary" id="textBtn" style="width:100%;margin-top:10px;padding:14px">📄 Wörter aus Text (Stellenanzeige, Artikel …)</button>
-  <div id="noData" class="empty hidden" style="margin-top:16px">Noch keine Buchkarten geladen.<br>Tippe auf ⚙︎ und dann auf „Karten laden“.</div>
+  <div id="noData" class="empty hidden" style="margin-top:16px">Noch keine Buchkarten geladen.<br>Tippe auf ⚙︎ und dann auf „Karten laden“ – oder melde dich dort unter „Synchronisierung“ an.</div>
   <div class="section-title"><h2>Sammlungen</h2><button class="secondary" id="newColl">+ Sammlung</button></div>
   <div class="grid" id="grid"></div>
+  <div class="muted small" id="syncLine" style="text-align:center;margin-top:18px"></div>
 </section>
 
 <section id="vColl" class="hidden">
@@ -564,7 +565,7 @@ function suggestSheet(){
   };
 }
 // ---------- Ansichten ----------
-function show(id){["vHome","vColl","vLearn","vStats"].forEach(v=>$(v).classList.toggle("hidden",v!==id));window.scrollTo(0,0)}
+function show(id){["vHome","vColl","vLearn","vStats"].forEach(v=>$(v).classList.toggle("hidden",v!==id));window.scrollTo(0,0);setTimeout(syncTryApply,0)}
 function renderHome(){
   const cur=curStreak(); $("sCur").textContent=cur; $("sCurLbl").textContent=cur===1?"Tag in Folge":"Tage in Folge";
   $("sBest").textContent=Math.max(streak.best,cur);
@@ -788,7 +789,7 @@ function updUndo(){$("undoBtn").disabled=!undoStack.length;$("undoBtn").style.op
 // ---------- Bearbeiten / Anlegen ----------
 function sheet(html){const r=$("sheetRoot");r.innerHTML=`<div class="sheet-bg"><div class="sheet">${html}</div></div>`;
   r.firstChild.addEventListener("click",e=>{if(e.target===r.firstChild)closeSheet()});return r}
-const closeSheet=()=>{$("sheetRoot").innerHTML=""};
+const closeSheet=()=>{$("sheetRoot").innerHTML="";setTimeout(syncTryApply,0)};
 function makeGap(sentence,form,c){
   if(!sentence.trim())return "";
   if(/\{.+?\}/.test(sentence))return sentence;
@@ -948,6 +949,8 @@ function settings(){
    <button class="secondary" id="sWerk" style="width:100%;margin-top:8px">Werkstatt-Karten importieren</button>
    <label>Anthropic-API-Schlüssel (für „Satz generieren“)</label><input id="sKey" type="password" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="sk-ant-…" value="${esc(LS.get("as-key",""))}">
    <div class="muted small" style="margin-top:4px;line-height:1.5">Wird nur auf diesem Gerät gespeichert.</div>
+   <label>Synchronisierung (iPhone ↔ Computer)</label><div class="muted small" id="syncStatus" style="line-height:1.5"></div>
+   <button class="secondary" id="syncBtn" style="width:100%;margin-top:8px">Anmelden</button>
    <label>Sicherung</label>
    <button class="secondary" id="sExport" style="width:100%">Eigene Karten & Fortschritt sichern</button>
    <button class="secondary" id="sImport" style="width:100%;margin-top:10px">Sicherung wiederherstellen</button>
@@ -955,6 +958,7 @@ function settings(){
   $("sSave").onclick=()=>{LS.set("as-key",$("sKey").value.trim());const v=parseInt($("sGoal").value,10);if(v>0){streak.goal=v;const t=streak.days[dkey(Date.now())];if(t&&!t.met&&t.n>=v)t.met=true;saveStreak()}closeSheet();renderHome()};
   if($("sLoad"))$("sLoad").onclick=()=>{fileMode="data";$("fileIn").click()};
   $("sImport").onclick=()=>{fileMode="backup";$("fileIn").click()};
+  $("syncBtn").onclick=syncButton;renderSync();
   $("sWerk").onclick=()=>{fileMode="werkstatt";$("fileIn").click()};
   $("sExport").onclick=()=>{const blob=new Blob([JSON.stringify({backup:1,user,prog,streak})],{type:"application/json"});
     const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="affarssvenska-sicherung-"+dkey(Date.now())+".json";document.body.appendChild(a);a.click();a.remove()};
@@ -1000,7 +1004,118 @@ $("statBtn").onclick=()=>{renderStats();show("vStats")};
 $("statBack").onclick=()=>{show("vHome");renderHome()};
 $("rYes").onclick=()=>rate("yes");$("rNo").onclick=()=>rate("no");$("rNever").onclick=()=>rate("never");
 document.addEventListener("click",()=>{if(actx&&actx.state==="suspended")actx.resume()},{once:true});
-renderHome();
+// ---------- Synchronisierung über Firebase ----------
+const FB_CONFIG={apiKey:"AIzaSyBGIuC3Iwpu7Va6So-64If150rSXuBQ7gQ",authDomain:"schwedisch-grammatik.firebaseapp.com",projectId:"schwedisch-grammatik",storageBucket:"schwedisch-grammatik.firebasestorage.app",messagingSenderId:"291718040966",appId:"1:291718040966:web:ff9e0daa24792cd85f3007"};
+const SYNC_KEYS=["as-data","as-user","as-prog","as-streak","as-theme"];
+let syncMeta=LS.get("as-sync-meta",{}),syncDev=LS.get("as-sync-dev","");
+if(!syncDev){syncDev=Math.random().toString(36).slice(2,10);LS.set("as-sync-dev",syncDev)}
+let syncUser=null,syncDb=null,syncAuth=null,syncPending=new Set(),syncTimer=null,syncApplying=false,syncLast=0,syncErr="",syncBusy="",syncUnsub=null,syncIncoming={};
+const syncOn=()=>!!(window.FB&&syncAuth);
+const _lsSet=LS.set;
+LS.set=function(k,v){_lsSet(k,v);if(!syncApplying&&SYNC_KEYS.includes(k)){syncMeta[k]=Date.now();_lsSet("as-sync-meta",syncMeta);queueSync(k)}};
+function syncErrText(e){const c=e&&e.code||"";
+  if(c.includes("permission-denied"))return "Keine Berechtigung in der Cloud – in Firebase fehlt noch eine Regel.";
+  if(c.includes("unavailable")||c.includes("network"))return "Keine Verbindung – Änderungen werden später übertragen.";
+  return "Synchronisierung gestört ("+(c||"Fehler")+")"}
+function queueSync(k){if(!syncUser)return;syncPending.add(k);clearTimeout(syncTimer);syncTimer=setTimeout(flushSync,1500);renderSync()}
+function flushSync(){
+  if(!syncUser||!syncDb||!syncPending.size)return Promise.resolve();
+  const keys=[...syncPending];syncPending.clear();const b=FB.writeBatch(syncDb);
+  keys.forEach(k=>{const v=localStorage.getItem(k);b.set(FB.doc(syncDb,"users",syncUser.uid,"as",k),{v:v===null?null:v,t:syncMeta[k]||Date.now(),dev:syncDev})});
+  const p=b.commit().then(()=>{syncLast=Date.now();syncErr="";renderSync()}).catch(e=>{syncErr=syncErrText(e);keys.forEach(k=>syncPending.add(k));renderSync()});
+  renderSync();return p}
+function syncReloadState(){
+  base=EMBEDDED||LS.get("as-data",[]);
+  user=Object.assign({cards:[],colls:[],edits:{},deleted:[],names:{}},LS.get("as-user",{}));
+  prog=LS.get("as-prog",{});
+  streak=Object.assign({goal:30,days:{},best:0},LS.get("as-streak",{}));
+  const t=LS.get("as-theme","light");document.documentElement.dataset.theme=t;$("themeBtn").textContent=t==="dark"?"☀️":"🌙"}
+function syncRerender(){
+  if(!$("vColl").classList.contains("hidden"))renderColl();
+  else if(!$("vStats").classList.contains("hidden"))renderStats();
+  else renderHome()}
+const syncUiBusy=()=>!$("vLearn").classList.contains("hidden")||$("sheetRoot").innerHTML!=="";
+function syncApply(k,d){
+  syncApplying=true;
+  try{if(d.v===null||d.v===undefined)localStorage.removeItem(k);else localStorage.setItem(k,d.v)}catch(e){}finally{syncApplying=false}
+  syncMeta[k]=d.t}
+function syncTryApply(){
+  const ks=Object.keys(syncIncoming);if(!ks.length||syncUiBusy())return;
+  let n=0;ks.forEach(k=>{const d=syncIncoming[k];if(d.t>(syncMeta[k]||0)){syncApply(k,d);n++}});
+  syncIncoming={};if(!n)return;
+  _lsSet("as-sync-meta",syncMeta);syncReloadState();syncRerender();toast("☁ Stand vom anderen Gerät übernommen")}
+function startListener(){
+  if(syncUnsub)syncUnsub();
+  syncUnsub=FB.onSnapshot(FB.collection(syncDb,"users",syncUser.uid,"as"),snap=>{
+    snap.docChanges().forEach(ch=>{if(ch.type==="removed")return;const k=ch.doc.id,d=ch.doc.data();
+      if(!SYNC_KEYS.includes(k)||!d||typeof d.t!=="number"||d.t<=(syncMeta[k]||0))return;syncIncoming[k]=d});
+    if(!snap.metadata.fromCache){syncLast=Date.now();if(!syncPending.size)syncErr=""}
+    syncTryApply();renderSync()},e=>{syncErr=syncErrText(e);renderSync()})}
+async function initialMerge(){
+  syncBusy="Erster Abgleich mit der Cloud …";renderSync();
+  const remote={};
+  try{const snap=await FB.getDocsFromServer(FB.collection(syncDb,"users",syncUser.uid,"as"));snap.forEach(d=>{if(SYNC_KEYS.includes(d.id))remote[d.id]=d.data()})}
+  catch(e){syncBusy="";syncErr=(e&&e.code||"").includes("permission")?syncErrText(e):"Für den ersten Abgleich braucht die App Internet. Bitte später erneut anmelden.";renderSync();return}
+  const uid=syncUser.uid;
+  const done=()=>{_lsSet("as-sync-init-"+uid,1);syncBusy="";startListener();renderSync()};
+  const upload=async(keys)=>{keys.forEach(k=>{if(localStorage.getItem(k)!==null){syncMeta[k]=Date.now();syncPending.add(k)}});_lsSet("as-sync-meta",syncMeta);done();await flushSync();if(!syncErr)toast("☁ Dein Stand ist jetzt in der Cloud")};
+  const download=()=>{Object.keys(remote).forEach(k=>syncApply(k,remote[k]));_lsSet("as-sync-meta",syncMeta);syncReloadState();syncRerender();
+    upload(SYNC_KEYS.filter(k=>!(k in remote)));toast("☁ Stand aus der Cloud übernommen")};
+  if(!Object.keys(remote).length){await upload(SYNC_KEYS);return}
+  const hasLocal=Object.keys(LS.get("as-prog",{})).length>0||(LS.get("as-user",{}).cards||[]).length>0;
+  if(!hasLocal){download();return}
+  syncBusy="";
+  sheet(`<h2>Welcher Stand soll gelten?</h2>
+    <div class="muted small" style="line-height:1.5">In der Cloud gibt es schon Daten, und auf diesem Gerät auch. Wähle, welcher Stand gelten soll – der andere wird überschrieben.<br><br>Tipp: Auf dem Gerät, mit dem du bisher gelernt hast (deinem iPhone), wählst du „Dieses Gerät“.</div>
+    <button class="primary" id="smLocal" style="width:100%;margin-top:16px">Dieses Gerät hochladen</button>
+    <button class="secondary" id="smCloud" style="width:100%;margin-top:10px">Cloud übernehmen</button>`);
+  $("smLocal").onclick=()=>{closeSheet();upload(SYNC_KEYS)};
+  $("smCloud").onclick=()=>{closeSheet();download()}}
+function renderSync(){
+  let txt;
+  if(!syncOn())txt=window.FB?"Synchronisierung konnte nicht starten.":"Nur in der installierten App mit Internet verfügbar.";
+  else if(!syncUser)txt="Nicht angemeldet – deine Daten liegen nur auf diesem Gerät.";
+  else if(syncBusy)txt=syncBusy;
+  else if(syncErr)txt=syncErr;
+  else if(syncPending.size)txt="Angemeldet als "+syncUser.email+" · wird synchronisiert …";
+  else txt="Angemeldet als "+syncUser.email+(syncLast?" · synchronisiert ✓":" · wartet auf Verbindung");
+  if($("syncStatus")){$("syncStatus").textContent=txt;$("syncBtn").textContent=syncUser?"Abmelden":"Anmelden";$("syncBtn").disabled=!syncOn()}
+  const l=$("syncLine");if(l)l.textContent=!syncUser?"":(syncErr?"☁ "+syncErr:navigator.onLine===false?"☁ Offline – wird später synchronisiert":"☁ Mit der Cloud synchronisiert")}
+function syncLogin(){
+  sheet(`<h2>Anmelden</h2>
+    <div class="muted small" style="line-height:1.5">Mit demselben Konto wie in deiner Grammatik-App. Danach werden Fortschritt, Streak, eigene Karten und Sammlungen automatisch zwischen deinen Geräten abgeglichen. Dein API-Schlüssel bleibt auf dem Gerät.</div>
+    <label>E-Mail</label><input id="lgMail" type="email" autocomplete="username" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <label>Passwort</label><input id="lgPw" type="password" autocomplete="current-password">
+    <div class="msg" id="lgMsg" style="margin-top:8px"></div>
+    <div class="btns"><button class="secondary" id="lgCancel">Abbrechen</button><button class="primary" id="lgGo">Anmelden</button></div>
+    <button class="small secondary" id="lgReset" style="width:100%;margin-top:12px">Passwort vergessen?</button>`);
+  $("lgCancel").onclick=closeSheet;
+  $("lgReset").onclick=()=>{const m=$("lgMail").value.trim();if(!m){$("lgMsg").textContent="Bitte zuerst deine E-Mail eingeben.";return}
+    FB.sendPasswordResetEmail(syncAuth,m).then(()=>{$("lgMsg").textContent="E-Mail zum Zurücksetzen wurde verschickt."}).catch(()=>{$("lgMsg").textContent="Das hat nicht geklappt. Stimmt die E-Mail?"})};
+  $("lgGo").onclick=()=>{const m=$("lgMail").value.trim(),p=$("lgPw").value;if(!m||!p){$("lgMsg").textContent="Bitte E-Mail und Passwort eingeben.";return}
+    $("lgMsg").textContent="Anmelden …";$("lgGo").disabled=true;
+    FB.signInWithEmailAndPassword(syncAuth,m,p).then(()=>{closeSheet();toast("☁ Angemeldet")}).catch(e=>{const c=e&&e.code||"";$("lgGo").disabled=false;
+      $("lgMsg").textContent=/invalid-credential|wrong-password|user-not-found|invalid-email/.test(c)?"E-Mail oder Passwort stimmt nicht.":c.includes("network")?"Keine Internetverbindung.":c.includes("unauthorized-domain")?"Diese Adresse ist in Firebase nicht freigegeben.":c.includes("too-many")?"Zu viele Versuche – bitte kurz warten.":"Anmeldung fehlgeschlagen ("+(c||"unbekannt")+")."})}}
+function syncButton(){
+  if(!syncOn())return;
+  if(syncUser){if(!confirm("Abmelden? Deine Daten bleiben auf diesem Gerät, werden aber nicht mehr abgeglichen."))return;
+    flushSync().finally(()=>{if(syncUnsub){syncUnsub();syncUnsub=null}FB.signOut(syncAuth);closeSheet();toast("Abgemeldet")})}
+  else syncLogin()}
+window.addEventListener("online",renderSync);window.addEventListener("offline",renderSync);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")flushSync();else syncTryApply()});
+if(window.FB){
+  try{
+    const app=FB.initializeApp(FB_CONFIG,"affarssvenska");
+    syncAuth=FB.getAuth(app);
+    try{syncDb=FB.initializeFirestore(app,{localCache:FB.persistentLocalCache({tabManager:FB.persistentSingleTabManager()})})}catch(e){syncDb=FB.initializeFirestore(app,{})}
+    FB.onAuthStateChanged(syncAuth,u=>{syncUser=u;syncErr="";
+      if(u){if(LS.get("as-sync-init-"+u.uid,0))startListener();else initialMerge()}
+      else{if(syncUnsub){syncUnsub();syncUnsub=null}}
+      renderSync()});
+  }catch(e){syncAuth=null}
+}
+
+renderHome();renderSync();
 if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{})}
 </script>
 </body>
