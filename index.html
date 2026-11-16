@@ -30,6 +30,7 @@ html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Manrope,sys
 button{font:inherit;color:inherit;cursor:pointer}
 button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
 .wrap{max-width:540px;margin:0 auto;padding:12px 18px 32px}
+#vLearn{padding-bottom:var(--kb,0px)}
 .hidden{display:none!important}
 .row{display:flex;align-items:center;gap:10px}
 .icon-btn{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--surface);font-size:1.15rem;flex:none}
@@ -104,7 +105,7 @@ textarea.solo{min-height:84px;text-align:left;resize:vertical;font-weight:600}
 .done{text-align:center;padding:40px 10px}
 .done b{display:block;font-size:1.4rem;margin-bottom:8px}
 /* Sheet */
-.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet-bg{position:fixed;left:0;right:0;top:var(--vvtop,0px);height:var(--vvh,100%);background:rgba(0,0,0,.45);z-index:20;display:flex;align-items:flex-end;justify-content:center}
 .sheet{background:var(--surface);color:var(--ink);width:100%;max-width:540px;max-height:92%;overflow:auto;border-radius:22px 22px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px))}
 .sheet label{display:block;font-size:.85rem;font-weight:600;color:var(--muted);margin:12px 0 4px}
 .sheet input,.sheet textarea,.sheet select{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink)}
@@ -699,12 +700,12 @@ function next(){
   const c=cur;let h=cardHead(c);
   if(c.t==="w"){
     h+=`<div><span class="de-word w">${esc(c.de)}</span></div><div class="typ" style="margin:6px 0 0">Wendung</div>
-      <textarea class="gap solo" id="gap" autocomplete="off" autocorrect="off" autocapitalize="sentences" spellcheck="false" placeholder="Auf Schwedisch …"></textarea><div class="msg" id="msg"></div>`;
+      <textarea class="gap solo" id="gap" enterkeyhint="go" autocomplete="off" autocorrect="off" autocapitalize="sentences" spellcheck="false" placeholder="Auf Schwedisch …"></textarea><div class="msg" id="msg"></div>`;
   }else{
     h+=`<div><span class="de-word">${esc(c.de)}</span><span class="typ">(${esc(c.typ)})</span></div><div class="lemma" id="lemma"></div>`;
     if(c.s){const [a,b]=c.s.split(/\{.+?\}/);const len=answerOf(c)[0].length;
-      h+=`<div class="sv">${esc(a)}<input class="gap" id="gap" style="width:${Math.max(6,len+2)}ch" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Antwort">${esc(b)}</div><div class="dex">${bold(c.d)}</div>`;
-    }else h+=`<input class="gap solo" id="gap" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Auf Schwedisch …">`;
+      h+=`<div class="sv">${esc(a)}<input class="gap" id="gap" enterkeyhint="go" style="width:${Math.max(6,len+2)}ch" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Antwort">${esc(b)}</div><div class="dex">${bold(c.d)}</div>`;
+    }else h+=`<input class="gap solo" id="gap" enterkeyhint="go" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Auf Schwedisch …">`;
     h+=`<div class="msg" id="msg"></div>`;
   }
   $("card").innerHTML=h;$("card").style.transform="";
@@ -1084,12 +1085,15 @@ function renderSync(){
 function syncLogin(){
   sheet(`<h2>Anmelden</h2>
     <div class="muted small" style="line-height:1.5">Mit demselben Konto wie in deiner Grammatik-App. Danach werden Fortschritt, Streak, eigene Karten und Sammlungen automatisch zwischen deinen Geräten abgeglichen. Dein API-Schlüssel bleibt auf dem Gerät.</div>
-    <label>E-Mail</label><input id="lgMail" type="email" autocomplete="username" autocorrect="off" autocapitalize="off" spellcheck="false">
-    <label>Passwort</label><input id="lgPw" type="password" autocomplete="current-password">
+    <label>E-Mail</label><input id="lgMail" type="email" enterkeyhint="next" autocomplete="username" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <label>Passwort</label><input id="lgPw" type="password" enterkeyhint="go" autocomplete="current-password">
     <div class="msg" id="lgMsg" style="margin-top:8px"></div>
     <div class="btns"><button class="secondary" id="lgCancel">Abbrechen</button><button class="primary" id="lgGo">Anmelden</button></div>
     <button class="small secondary" id="lgReset" style="width:100%;margin-top:12px">Passwort vergessen?</button>`);
   $("lgCancel").onclick=closeSheet;
+  $("lgMail").focus();
+  $("lgMail").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("lgPw").focus()}});
+  $("lgPw").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("lgGo").click()}});
   $("lgReset").onclick=()=>{const m=$("lgMail").value.trim();if(!m){$("lgMsg").textContent="Bitte zuerst deine E-Mail eingeben.";return}
     FB.sendPasswordResetEmail(syncAuth,m).then(()=>{$("lgMsg").textContent="E-Mail zum Zurücksetzen wurde verschickt."}).catch(()=>{$("lgMsg").textContent="Das hat nicht geklappt. Stimmt die E-Mail?"})};
   $("lgGo").onclick=()=>{const m=$("lgMail").value.trim(),p=$("lgPw").value;if(!m||!p){$("lgMsg").textContent="Bitte E-Mail und Passwort eingeben.";return}
@@ -1115,6 +1119,24 @@ if(window.FB){
   }catch(e){syncAuth=null}
 }
 
+
+// ---------- Tastatur am iPhone: nichts verdecken ----------
+(function(){const vv=window.visualViewport;if(!vv)return;const root=document.documentElement;
+  function keepVisible(){
+    if($("vLearn").classList.contains("hidden"))return;const g=$("gap"),a=$("actFront");
+    if(!g||document.activeElement!==g||!a||a.classList.contains("hidden"))return;
+    const top=vv.offsetTop,bottom=vv.offsetTop+vv.height;
+    let d=a.getBoundingClientRect().bottom-bottom+12;
+    d=Math.min(d,$("card").getBoundingClientRect().top-top-8);
+    if(Math.abs(d)>4)window.scrollBy(0,d)}
+  function fit(){const lh=root.clientHeight||window.innerHeight,kb=Math.max(0,lh-vv.height);
+    root.style.setProperty("--vvh",vv.height+"px");root.style.setProperty("--vvtop",vv.offsetTop+"px");root.style.setProperty("--kb",(kb>100?kb:0)+"px");
+    if(kb>100)setTimeout(keepVisible,60)}
+  vv.addEventListener("resize",fit);fit();
+  document.addEventListener("focusin",e=>{const t=e.target;if(!t||!t.matches)return;
+    if(t.id==="gap")setTimeout(keepVisible,350);
+    else if(t.closest&&t.closest(".sheet"))setTimeout(()=>{try{t.scrollIntoView({block:"nearest",behavior:"smooth"})}catch(x){}},350)});
+})();
 renderHome();renderSync();
 if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{})}
 </script>
