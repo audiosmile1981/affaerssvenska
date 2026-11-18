@@ -306,10 +306,12 @@ let voice=null;
 function pickVoice(){const vs=speechSynthesis.getVoices().filter(v=>(v.lang||"").toLowerCase().replace("_","-").startsWith("sv"));const os=vs.filter(v=>/oskar/i.test(v.name));voice=os.find(v=>/förbättrad|enhanced|premium/i.test(v.name))||os[0]||vs[0]||null}
 if("speechSynthesis" in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}
 // ---------- Professionelle Stimme (Google Cloud) ----------
+const VOICES=[["sv-SE-Chirp3-HD-Algenib","Algenib · Mann"],["sv-SE-Chirp3-HD-Puck","Puck · Mann"],["sv-SE-Chirp3-HD-Achernar","Achernar · Frau"],["sv-SE-Chirp3-HD-Callirrhoe","Callirrhoe · Frau"]];
+const curVoice=()=>{const v=LS.get("as-ttsvoice","");return VOICES.some(x=>x[0]===v)?v:VOICES[0][0]};
 const TTS_SAMPLE="Hej och välkommen! I dag går vi igenom budgeten för nästa kvartal.";
 const SILENT="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
 let ttsEl=null;const ttsMem=new Map();
-const ttsCfg=()=>({key:LS.get("as-ttskey",""),voice:LS.get("as-ttsvoice","")});
+const ttsCfg=()=>({key:LS.get("as-ttskey",""),voice:curVoice()});
 function setSess(t){try{if(navigator.audioSession)navigator.audioSession.type=t}catch(e){}}
 let ttsDbP=null;
 function ttsDb(){if(!ttsDbP)ttsDbP=new Promise(res=>{try{const r=indexedDB.open("as-tts",1);r.onupgradeneeded=()=>r.result.createObjectStore("a");r.onsuccess=()=>res(r.result);r.onerror=()=>res(null)}catch(e){res(null)}});return ttsDbP}
@@ -1069,10 +1071,10 @@ function settings(){
    <label class="item" style="cursor:pointer;margin:0;border:1px solid var(--line);border-radius:12px;color:var(--ink);font-weight:400"><input type="checkbox" id="sSnd" style="width:auto" ${SND()?"checked":""}> Klänge und automatisches Vorlesen</label>
    <div class="muted small" style="margin-top:4px;line-height:1.5">Aus: Podcasts und Musik laufen ungestört weiter. 🔊 auf der Karte liest trotzdem vor.</div>
    <label>Vorlesestimme</label>
-   <div class="muted small" style="line-height:1.5">Ohne Schlüssel liest die iPhone-Stimme. Mit einem Google-Cloud-Schlüssel bekommst du eine professionelle Stimme.</div>
+   <div class="muted small" style="line-height:1.5">Wähle eine der vier Stimmen und hör sie dir mit „Hörprobe“ an. Ohne Google-Schlüssel (oder offline bei neuen Sätzen) springt die iPhone-Stimme ein.</div>
    <input id="sTts" type="password" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Google-Cloud-Schlüssel (AIza…)" value="${esc(LS.get("as-ttskey",""))}" style="margin-top:8px">
-   <select id="sVoice" style="margin-top:8px">${LS.get("as-ttsvoice","")?`<option value="${esc(LS.get("as-ttsvoice",""))}">${esc(voiceLabel(LS.get("as-ttsvoice","")))}</option>`:""}<option value="">iPhone-Stimme</option></select>
-   <div class="row" style="margin-top:8px;gap:8px"><button class="secondary" id="sVoiceLoad" style="flex:1">Stimmen laden</button><button class="secondary" id="sVoiceTry" style="flex:1">▶ Hörprobe</button></div>
+   <select id="sVoice" style="margin-top:8px">${VOICES.map(([n,l])=>`<option value="${n}"${n===curVoice()?" selected":""}>${l}</option>`).join("")}</select>
+   <button class="secondary" id="sVoiceTry" style="width:100%;margin-top:8px">▶ Hörprobe</button>
    <div class="msg" id="sVoiceMsg"></div>
    <label>Anthropic-API-Schlüssel (für „Satz generieren“)</label><input id="sKey" type="password" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="sk-ant-…" value="${esc(LS.get("as-key",""))}">
    <div class="muted small" style="margin-top:4px;line-height:1.5">Wird nur auf diesem Gerät gespeichert.</div>
@@ -1085,18 +1087,7 @@ function settings(){
   const saveVoice=()=>{LS.set("as-ttskey",$("sTts").value.trim());LS.set("as-ttsvoice",$("sVoice").value)};
   $("sSnd").onchange=()=>{LS.set("as-sound",$("sSnd").checked);updSnd();if(!$("sSnd").checked)stopSpeech()};
   $("sVoice").onchange=saveVoice;
-  $("sVoiceLoad").onclick=async()=>{const key=$("sTts").value.trim(),m=$("sVoiceMsg");if(!key){m.className="msg bad";m.textContent="Bitte zuerst den Google-Schlüssel eintragen.";return}
-    m.className="msg";m.textContent="Lade Stimmen …";
-    try{const r=await fetch("https://texttospeech.googleapis.com/v1/voices?languageCode=sv-SE&key="+encodeURIComponent(key));const j=await r.json().catch(()=>({}));
-      if(!r.ok)throw new Error((j.error&&j.error.message)||("Fehler "+r.status));
-      const rank=n=>/Chirp3-HD/.test(n)?0:/Chirp/.test(n)?1:/Neural2|Wavenet/.test(n)?2:3;
-      const vs=(j.voices||[]).filter(v=>(v.languageCodes||[]).includes("sv-SE")).sort((a,b)=>rank(a.name)-rank(b.name)||(a.ssmlGender===b.ssmlGender?a.name.localeCompare(b.name):a.ssmlGender==="MALE"?-1:1));
-      if(!vs.length)throw new Error("Keine schwedischen Stimmen gefunden.");
-      const curV=LS.get("as-ttsvoice","");const def=(vs.find(v=>v.name===curV)||vs.find(v=>/Chirp3-HD-Charon/.test(v.name))||vs.find(v=>v.ssmlGender==="MALE")||vs[0]).name;
-      $("sVoice").innerHTML=vs.map(v=>`<option value="${esc(v.name)}"${v.name===def?" selected":""}>${esc(voiceLabel(v.name,v.ssmlGender))}</option>`).join("")+`<option value="">iPhone-Stimme</option>`;
-      saveVoice();m.className="msg ok";m.textContent=vs.length+" Stimmen gefunden. Wähle eine aus und tippe auf „Hörprobe“."}
-    catch(e){m.className="msg bad";m.textContent="Das hat nicht geklappt: "+e.message}};
-  $("sVoiceTry").onclick=()=>{saveVoice();const m=$("sVoiceMsg");if(!$("sVoice").value){speakDevice(TTS_SAMPLE);m.className="msg";m.textContent="Das ist die iPhone-Stimme.";return}
+  $("sVoiceTry").onclick=()=>{saveVoice();const m=$("sVoiceMsg");if(!$("sTts").value.trim()){m.className="msg bad";m.textContent="Bitte zuerst den Google-Schlüssel eintragen.";return}
     m.className="msg";m.textContent="Einen Moment …";ttsPlay(TTS_SAMPLE).then(()=>{m.textContent=""}).catch(e=>{m.className="msg bad";m.textContent="Das hat nicht geklappt: "+e.message})};
   $("sSave").onclick=()=>{saveVoice();LS.set("as-key",$("sKey").value.trim());const v=parseInt($("sGoal").value,10);if(v>0){streak.goal=v;const t=streak.days[dkey(Date.now())];if(t&&!t.met&&t.n>=v)t.met=true;saveStreak()}closeSheet();renderHome()};
   if($("sLoad"))$("sLoad").onclick=()=>{fileMode="data";$("fileIn").click()};
